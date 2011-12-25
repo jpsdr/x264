@@ -982,6 +982,7 @@ static void help( x264_param_t *defaults, int longhelp )
     H1( "      --psnr                  Enable PSNR computation\n" );
     H1( "      --ssim                  Enable SSIM computation\n" );
     H1( "      --threads <integer>     Force a specific number of threads\n" );
+    H1( "      --demuxer-threads <integer> Force a specific number of threads for demuxer (lavf, ffms)\n" );
     H2( "      --lookahead-threads <integer> Force a specific number of lookahead threads\n" );
     H2( "      --sliced-threads        Low-latency but lower-efficiency threading\n" );
     H2( "      --thread-input          Run Avisynth in its own thread\n" );
@@ -1059,6 +1060,7 @@ typedef enum
     OPT_PULLDOWN,
     OPT_LOG_LEVEL,
     OPT_STYLISH,
+    OPT_DEMUXER_THREADS,
     OPT_VIDEO_FILTER,
     OPT_INPUT_FMT,
     OPT_INPUT_RES,
@@ -1193,6 +1195,7 @@ static struct option long_options[] =
     { "zones",       required_argument, NULL, 0 },
     { "qpfile",      required_argument, NULL, OPT_QPFILE },
     { "threads",     required_argument, NULL, 0 },
+    { "demuxer-threads",   required_argument, NULL, OPT_DEMUXER_THREADS },
     { "lookahead-threads", required_argument, NULL, 0 },
     { "sliced-threads",    no_argument, NULL, 0 },
     { "no-sliced-threads", no_argument, NULL, 0 },
@@ -1643,6 +1646,9 @@ static int parse( int argc, char **argv, x264_param_t *param, cli_opt_t *opt )
             case OPT_THREAD_INPUT:
                 b_thread_input = 1;
                 break;
+            case OPT_DEMUXER_THREADS:
+                input_opt.demuxer_threads = X264_MAX( atoi( optarg ), 1 );
+                break;
             case OPT_QUIET:
                 cli_log_level = param->i_log_level = X264_LOG_NONE;
                 break;
@@ -1863,6 +1869,7 @@ generic_option:
     input_opt.seek = opt->i_seek;
     input_opt.progress = opt->b_progress;
     input_opt.output_csp = output_csp;
+    input_opt.demuxer_threads = x264_clip3( input_opt.demuxer_threads, 1, X264_THREAD_MAX );
 
     if( select_input( demuxer, demuxername, input_filename, &opt->hin, &info, &input_opt ) )
         return -1;
