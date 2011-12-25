@@ -1182,7 +1182,8 @@ typedef enum
     OPT_NO_REMUX,
     OPT_FORCE_DISPLAY_SIZE,
     OPT_FRAGMENTS,
-    OPT_PRIMING
+    OPT_PRIMING,
+    OPT_COLORMATRIX
 } OptionsOPT;
 
 static char short_options[] = "8A:B:b:f:hI:i:m:o:p:q:r:t:Vvw";
@@ -1338,7 +1339,7 @@ static struct option long_options[] =
     { "range",       required_argument, NULL, OPT_RANGE },
     { "colorprim",   required_argument, NULL, 0 },
     { "transfer",    required_argument, NULL, 0 },
-    { "colormatrix", required_argument, NULL, 0 },
+    { "colormatrix", required_argument, NULL, OPT_COLORMATRIX },
     { "chromaloc",   required_argument, NULL, 0 },
     { "force-cfr",         no_argument, NULL, 0 },
     { "tcfile-in",   required_argument, NULL, OPT_TCFILE_IN },
@@ -1660,6 +1661,8 @@ static int parse( int argc, char **argv, x264_param_t *param, cli_opt_t *opt )
     int b_user_ref = 0;
     int b_user_fps = 0;
     int b_user_interlaced = 0;
+    int b_user_colormatrix = 0;
+    int shown_colormatrix = 2; /* shown as 'undef' */
     cli_input_opt_t input_opt;
     cli_output_opt_t output_opt;
     char *preset = NULL;
@@ -1943,6 +1946,9 @@ static int parse( int argc, char **argv, x264_param_t *param, cli_opt_t *opt )
             case OPT_PRIMING:
                 output_opt.priming = atoi( optarg );
                 break;
+            case OPT_COLORMATRIX:
+                b_user_colormatrix = 1;
+                goto generic_option;
             default:
 generic_option:
             {
@@ -1993,6 +1999,7 @@ generic_option:
     char demuxername[5];
 
     /* set info flags to be overwritten by demuxer as necessary. */
+    info.colormatrix = param->vui.i_colmatrix;
     info.csp        = param->i_csp;
     info.fps_num    = param->i_fps_num;
     info.fps_den    = param->i_fps_den;
@@ -2035,11 +2042,38 @@ generic_option:
             return -1;
     }
 
+    if( info.colormatrix >= 0 && info.colormatrix <= 8 )
+        shown_colormatrix = info.colormatrix;
+
     x264_reduce_fraction( &info.sar_width, &info.sar_height );
     x264_reduce_fraction( &info.fps_num, &info.fps_den );
     x264_cli_log( demuxername, X264_LOG_INFO, "%dx%d%c %u:%u @ %u/%u fps (%cfr)\n", info.width,
                   info.height, info.interlaced ? 'i' : 'p', info.sar_width, info.sar_height,
                   info.fps_num, info.fps_den, info.vfr ? 'v' : 'c' );
+    x264_cli_log( demuxername,  X264_LOG_INFO, "color matrix: %s\n",
+                  strtable_lookup( x264_colmatrix_names, shown_colormatrix ));
+
+    /* We don't realy need this hack, as
+     *   for AviSynth  input: it is not necessary as colorspace magic is changed in the next patch: decided according to resolution
+     *   for lavf/ffms input: does not really work well now ( if it did ) for many sources, with which lavf/ffms may report colorspace in a different logic,
+     *                        no to mention swscale is too terrible to be relied on
+     *   for output-csp=rgb : sps->vui.i_colmatrix will be set correctly in x264_sps_init, so no need to set it here
+     * And the most important is, for the majority who are not aware of this hidden logic, it is always necessary to specify the output-csp to avoid regressions
+     */
+#if 0
+    /* In case of YUV<->RGB, and no user-set settings,
+       change the metadata gotten from demuxers. */
+    if( ( info.csp & X264_CSP_MASK ) >= X264_CSP_BGR && ( output_csp & X264_CSP_MASK ) <= X264_CSP_YV24 )
+    {
+        if( !b_user_colormatrix )
+            info.colormatrix = 5; /* bt470bg ; swscale and avisynth by default do their magic in it. */
+    }
+    else if( ( info.csp & X264_CSP_MASK ) <= X264_CSP_YV24 && ( output_csp & X264_CSP_MASK ) >= X264_CSP_BGR )
+    {
+        if( !b_user_colormatrix )
+            info.colormatrix = 0; /* GBR */
+    }
+#endif // if 0
 
     char arg[MAX_ARGS] = { 0 };
     int len = 0;
@@ -2132,6 +2166,9 @@ generic_option:
     if( input_opt.input_range != RANGE_AUTO )
         info.fullrange = input_opt.input_range;
 
+    if( b_user_colormatrix )
+        info.colormatrix = param->vui.i_colmatrix;
+
     if( init_vid_filters( vid_filters, &opt->hin, &info, param, output_csp ) )
         return -1;
 
@@ -2141,6 +2178,7 @@ generic_option:
     param->i_fps_den = info.fps_den;
     param->i_timebase_num = info.timebase_num;
     param->i_timebase_den = info.timebase_den;
+    param->vui.i_colmatrix = info.colormatrix;
     param->vui.i_sar_width  = info.sar_width;
     param->vui.i_sar_height = info.sar_height;
 
