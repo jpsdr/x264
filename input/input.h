@@ -44,6 +44,7 @@ typedef struct
     int output_csp; /* convert to this csp, if applicable */
     int output_range; /* user desired output range */
     int input_range; /* user override input range */
+    int demuxer_threads;
 } cli_input_opt_t;
 
 /* properties of the source given by the demuxer */

@@ -138,7 +138,7 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
     h->has_audio = !!( FFMS_GetFirstTrackOfType( idx, FFMS_TYPE_AUDIO, &e ) > 0 );
 #endif
 
-    h->video_source = FFMS_CreateVideoSource( src_filename, trackno, idx, 1, seekmode, &e );
+    h->video_source = FFMS_CreateVideoSource( src_filename, trackno, idx, opt->demuxer_threads, seekmode, &e );
     FAIL_IF_ERROR( !h->video_source, "could not create video source\n" )
 
     h->track = FFMS_GetTrackFromVideo( h->video_source );
