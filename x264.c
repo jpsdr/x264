@@ -39,6 +39,7 @@
 
 #include <signal.h>
 #include <getopt.h>
+#include <time.h>
 #include "common/common.h"
 #include "x264cli.h"
 #include "audio/encoders.h"
@@ -2362,6 +2363,9 @@ static int encode( x264_param_t *param, cli_opt_t *opt )
     if( opt->tcfile_out )
         fprintf( opt->tcfile_out, "# timecode format v2\n" );
 
+    time_t tm1 = time(NULL);
+    x264_cli_log( "x264", X264_LOG_INFO, "started at %s", ctime(&tm1) );
+
     if( opt->b_progress && param->b_stylish )
     {
         if( param->i_frame_total )
@@ -2495,6 +2499,11 @@ fail:
         x264_cli_printf( X264_LOG_INFO, "encoded %d frames, %.2f fps, %.2f kb/s\n", i_frame_output, fps,
                          (double) i_file * 8 / ( 1000 * duration ) );
     }
+
+    time_t tm2 = time(NULL);
+    x264_cli_log( "x264", X264_LOG_INFO, "ended at %s", ctime(&tm2) );
+    tm2 -= tm1;
+    x264_cli_log( "x264", X264_LOG_INFO, "encoding duration %d:%02d:%02d\n", tm2 / 3600, tm2 % 3600 / 60, tm2 % 60 );
 
     return retval;
 }
