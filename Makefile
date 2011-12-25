@@ -106,6 +106,10 @@ ifneq ($(findstring HAVE_LSMASH 1, $(CONFIG)),)
 SRCCLI += output/mp4_lsmash.c
 endif
 
+ifneq ($(findstring HAVE_AVI_OUTPUT 1, $(CONFIG)),)
+SRCCLI += output/avi.c
+endif
+
 # MMX/SSE optims
 ifneq ($(AS),)
 X86SRC0 = const-a.asm cabac-a.asm dct-a.asm deblock-a.asm mc-a.asm \
