@@ -1359,11 +1359,14 @@ void x264_ratecontrol_delete( x264_t *h )
         b_regular_file = x264_is_regular_file( rc->p_stat_file_out );
         fclose( rc->p_stat_file_out );
         if( h->i_frame >= rc->num_entries && b_regular_file )
+        {
+            remove( h->param.rc.psz_stat_out );
             if( x264_rename( rc->psz_stat_file_tmpname, h->param.rc.psz_stat_out ) != 0 )
             {
                 x264_log( h, X264_LOG_ERROR, "failed to rename \"%s\" to \"%s\"\n",
                           rc->psz_stat_file_tmpname, h->param.rc.psz_stat_out );
             }
+        }
         x264_free( rc->psz_stat_file_tmpname );
     }
     if( rc->p_mbtree_stat_file_out )
@@ -1371,11 +1374,14 @@ void x264_ratecontrol_delete( x264_t *h )
         b_regular_file = x264_is_regular_file( rc->p_mbtree_stat_file_out );
         fclose( rc->p_mbtree_stat_file_out );
         if( h->i_frame >= rc->num_entries && b_regular_file )
+        {
+            remove( rc->psz_mbtree_stat_file_name );
             if( x264_rename( rc->psz_mbtree_stat_file_tmpname, rc->psz_mbtree_stat_file_name ) != 0 )
             {
                 x264_log( h, X264_LOG_ERROR, "failed to rename \"%s\" to \"%s\"\n",
                           rc->psz_mbtree_stat_file_tmpname, rc->psz_mbtree_stat_file_name );
             }
+        }
         x264_free( rc->psz_mbtree_stat_file_tmpname );
         x264_free( rc->psz_mbtree_stat_file_name );
     }
