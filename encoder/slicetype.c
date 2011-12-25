@@ -457,7 +457,7 @@ void x264_weights_analyse( x264_t *h, x264_frame_t *fenc, x264_frame_t *ref, int
         else
             SET_WEIGHT( weights[plane], 1, minscale, mindenom, minoff );
 
-        if( h->param.analyse.i_weighted_pred == X264_WEIGHTP_FAKE && weights[0].weightfn && !plane )
+        if( weights[0].weightfn && !plane )
             fenc->f_weighted_cost_delta[i_delta_index] = (float)minscore / origscore;
     }
 
@@ -1035,7 +1035,7 @@ static void x264_macroblock_tree_finish( x264_t *h, x264_frame_t *frame, float a
     int fps_factor = round( CLIP_DURATION(average_duration) / CLIP_DURATION(frame->f_duration) * 256 / MBTREE_PRECISION );
     float weightdelta = 0.0;
     if( ref0_distance && frame->f_weighted_cost_delta[ref0_distance-1] > 0 )
-        weightdelta = (1.0 - frame->f_weighted_cost_delta[ref0_distance-1]);
+        weightdelta = (1.0 - frame->f_weighted_cost_delta[ref0_distance-1]) * 10.0f * h->param.rc.f_fade_compensate;
 
     /* Allow the strength to be adjusted via qcompress, since the two
      * concepts are very similar. */
