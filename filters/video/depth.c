@@ -193,6 +193,13 @@ static void free_filter( hnd_t handle )
 static int init( hnd_t *handle, cli_vid_filter_t *filter, video_info_t *info,
                  x264_param_t *param, char *opt_string )
 {
+    if( info->csp & X264_CSP_SKIP_DEPTH_FILTER )
+    {
+        x264_cli_log( "depth", X264_LOG_INFO, "skipped depth filter\n" );
+        info->csp = (info->csp & X264_CSP_MASK) | X264_CSP_HIGH_DEPTH;
+        return 0;
+    }
+
     int ret = 0;
     int change_fmt = (info->csp ^ param->i_csp) & X264_CSP_HIGH_DEPTH;
     int csp = ~(~info->csp ^ change_fmt);
