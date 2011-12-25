@@ -186,6 +186,8 @@ void x264_param_default( x264_param_t *param )
     param->opencl_device_id = NULL;
     param->psz_clbin_file = NULL;
 
+    param->filters.b_sub = 0;
+
     param->i_opts_write = X264_OPTS_FULL;
     for( int i = 0; i < X264_OPTS_MAX; i++ )
         param->psz_opts[i] = NULL;
