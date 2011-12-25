@@ -244,6 +244,7 @@ static const char * const x264_avcintra_flavor_names[] = { "panasonic", "sony", 
 #define X264_CSP_MAX            0x0011  /* end of list */
 #define X264_CSP_VFLIP          0x1000  /* the csp is vertically flipped */
 #define X264_CSP_HIGH_DEPTH     0x2000  /* the csp has a depth of 16 bits per pixel component */
+#define X264_CSP_SKIP_DEPTH_FILTER 0x0100  /* HACK: totally skips depth filter to prevent dither error */
 
 /* Slice type */
 #define X264_TYPE_AUTO          0x0000  /* Let x264 choose the right type */
