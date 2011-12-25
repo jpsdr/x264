@@ -60,6 +60,10 @@ void x264_register_vid_filters( void )
     REGISTER_VFILTER( select_every );
     REGISTER_VFILTER( vflip );
     REGISTER_GPL_VFILTER( yadif );
+
+#ifdef _WIN32
+    REGISTER_VFILTER( subtitles );
+#endif
 }
 
 int x264_init_vid_filter( const char *name, hnd_t *handle, cli_vid_filter_t *filter,

@@ -162,6 +162,9 @@ typedef struct {
 /* file i/o operation structs */
 cli_input_t cli_input;
 static cli_output_t cli_output;
+#ifdef _WIN32
+int add_sub(char *filename);
+#endif
 
 /* video filter operation struct */
 static cli_vid_filter_t filter;
@@ -1160,6 +1163,9 @@ typedef enum
     OPT_OUTPUT_CSP,
     OPT_INPUT_RANGE,
     OPT_RANGE,
+#ifdef _WIN32
+    OPT_SUB,
+#endif
     OPT_AUDIOFILE,
     OPT_AUDIODEMUXER,
     OPT_AUDIOTRACK,
@@ -1355,6 +1361,9 @@ static struct option long_options[] =
     { "input-range", required_argument, NULL, OPT_INPUT_RANGE },
     { "stitchable",        no_argument, NULL, 0 },
     { "filler",            no_argument, NULL, 0 },
+#ifdef _WIN32
+    { "sub",         required_argument, NULL, OPT_SUB},
+#endif
     { "audiofile",   required_argument, NULL, OPT_AUDIOFILE },
     { "ademuxer",    required_argument, NULL, OPT_AUDIODEMUXER },
     { "atrack",      required_argument, NULL, OPT_AUDIOTRACK },
@@ -1524,7 +1533,10 @@ static int init_vid_filters( char *sequence, hnd_t *handle, video_info_t *info, 
     /* intialize baseline filters */
     if( x264_init_vid_filter( "source", handle, &filter, info, param, NULL ) ) /* wrap demuxer into a filter */
         return -1;
-    if( x264_init_vid_filter( "resize", handle, &filter, info, param, "normcsp" ) ) /* normalize csps to be of a known/supported format */
+    if( x264_init_vid_filter( "resize", handle, &filter, info, param, param->filters.b_sub
+                                                                      && sequence
+                                                                      && strstr( sequence, "subtitles" )
+                                                                      && info->csp != X264_CSP_I420 ? "csp=i420:8" : "normcsp" ) ) /* normalize csps to be of a known/supported format */
         return -1;
     if( x264_init_vid_filter( "fix_vfr_pts", handle, &filter, info, param, NULL ) ) /* fix vfr pts */
         return -1;
@@ -1857,6 +1869,13 @@ static int parse( int argc, char **argv, x264_param_t *param, cli_opt_t *opt )
                 FAIL_IF_ERROR( parse_enum_value( optarg, range_names, &param->vui.b_fullrange ), "Unknown range `%s'\n", optarg );
                 input_opt.output_range = param->vui.b_fullrange += RANGE_AUTO;
                 break;
+#ifdef _WIN32
+            case OPT_SUB:
+                if (!add_sub(optarg))
+                    x264_cli_log( "x264", X264_LOG_WARNING, "too many subtitles, \"%s\" ignored\n", optarg );
+                param->filters.b_sub = 1;
+                break;
+#endif
             case OPT_AUDIOCODEC:
                 audio_enc = optarg;
                 if( !strcmp( audio_enc, "none" ) )
@@ -1986,6 +2005,7 @@ generic_option:
     }
     info.tff        = param->b_tff;
     info.vfr        = param->b_vfr_input;
+    info.timebase_convert_multiplier = 1.;
 
     input_opt.seek = opt->i_seek;
     input_opt.progress = opt->b_progress;
@@ -2098,6 +2118,11 @@ generic_option:
         info.timebase_num = i_user_timebase_num;
         info.timebase_den = i_user_timebase_den;
         info.vfr = 1;
+
+        /* useful for subtitles renderer
+         * or other video filters which require accurate present time (= pts * timebase)
+         */
+        info.timebase_convert_multiplier = opt->timebase_convert_multiplier;
     }
     if( b_user_interlaced )
     {
