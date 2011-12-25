@@ -197,6 +197,9 @@ static const char * const muxer_names[] =
     "mov",
     "qt",
 #endif
+#if HAVE_AVI_OUTPUT
+    "avi",
+#endif
     0
 };
 
@@ -517,6 +520,7 @@ static void help( x264_param_t *defaults, int longhelp )
         " .3g2 -> MP4 (branded '3gp6' and '3g2a')\n"
         " .mov or .qt -> QuickTime File Format\n"
 #endif
+        " .avi -> AVI if compiled with support (%s)\n"
         "Output bit depth: %d (configured at compile time)\n"
         "\n"
         "Options:\n"
@@ -545,6 +549,11 @@ static void help( x264_param_t *defaults, int longhelp )
         "gpac",
 #elif HAVE_LSMASH
         "lsmash",
+#else
+        "no",
+#endif
+#if HAVE_AVI_OUTPUT
+        "yes",
 #else
         "no",
 #endif
@@ -1333,6 +1342,23 @@ static int select_output( const char *muxer, char *filename, x264_param_t *param
         cli_output = flv_output;
         param->b_annexb = 0;
         param->b_repeat_headers = 0;
+    }
+    else if( !strcasecmp( ext, "avi" ) )
+    {
+#if HAVE_AVI_OUTPUT
+        cli_output = avi_output;
+        param->b_annexb = 1;
+        /* param->b_dts_compress = 0; */
+        param->b_repeat_headers = 1;
+        if( param->b_vfr_input )
+        {
+            x264_cli_log( "x264", X264_LOG_WARNING, "VFR is not compatible with AVI output\n" );
+            param->b_vfr_input = 0;
+        }
+#else
+        x264_cli_log( "x264", X264_LOG_ERROR, "not compiled with AVI output support\n" );
+        return -1;
+#endif
     }
     else
         cli_output = raw_output;

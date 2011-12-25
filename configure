@@ -53,6 +53,7 @@ External library support:
   --disable-swscale        disable swscale support
   --disable-lavf           disable libavformat support
   --disable-ffms           disable ffmpegsource support
+  --disable-avi-output     disables avi output (using libavformat)
   --disable-gpac           disable gpac support
   --disable-lsmash         disable lsmash support
   --disable-audio          disable audio support
@@ -350,6 +351,7 @@ avs="auto"
 lavf="auto"
 lavr="auto"
 ffms="auto"
+avi_output="auto"
 gpac="auto"
 lsmash="auto"
 mp4="no"
@@ -396,7 +398,7 @@ NL="
 # list of all preprocessor HAVE values we can define
 CONFIG_HAVE="MALLOC_H ALTIVEC ALTIVEC_H MMX ARMV6 ARMV6T2 NEON BEOSTHREAD POSIXTHREAD WIN32THREAD THREAD LOG2F SWSCALE \
              LAVF FFMS GPAC AVS GPL VECTOREXT INTERLACED CPU_COUNT OPENCL THP LSMASH X86_INLINE_ASM AS_FUNC INTEL_DISPATCHER \
-             MSA MMAP WINRT VSX ARM_INLINE_ASM"
+             AVI_OUTPUT MSA MMAP WINRT VSX ARM_INLINE_ASM"
 
 # list of all preprocessor HAVE values we can define for audio stuff
 CONFIG_AUDIO_HAVE="AUDIO LAME QT_AAC FAAC AMRWB_3GPP NONFREE"
@@ -447,6 +449,9 @@ for opt do
             ;;
         --disable-ffms)
             ffms="no"
+            ;;
+        --disable-avi-output)
+            avi_output="no"
             ;;
         --disable-gpac)
             gpac="no"
@@ -1352,6 +1357,32 @@ elif [ "$gpac" = "yes" ] ; then
     LDFLAGSCLI="$GPAC_LIBS $LDFLAGSCLI"
 fi
 
+if [ "$avi_output" = "auto" ] ; then
+    avi_output="no"
+    if ${cross_prefix}pkg-config --exists libavformat 2>$DEVNULL; then
+        AVI_LIBS="$AVI_LIBS $(${cross_prefix}pkg-config --libs libavformat)"
+        AVI_CFLAGS="$AVI_CFLAGS $(${cross_prefix}pkg-config --cflags libavformat)"
+    fi
+    if [ -z "$AVI_LIBS" -a -z "$AVI_CFLAGS" ]; then
+        AVI_LIBS="-lavformat"
+        for lib in -lavcodec -lavutil -lm -lz -lbz2 $libpthread -lavifil32; do
+            cc_check "" $lib && AVI_LIBS="$AVI_LIBS $lib"
+        done
+    fi
+    AVI_LIBS="-L. $AVI_LIBS"
+    if cc_check libavformat/avformat.h "$AVI_CFLAGS $AVI_LIBS" ; then
+        if cc_check libavformat/avformat.h "$AVI_CFLAGS $AVI_LIBS" 'av_register_all(); av_guess_format( "avi", NULL, NULL );' ; then
+            avi_output="yes"
+        fi
+    fi
+fi
+
+if [ "$avi_output" = "yes" ]; then
+    LDFLAGSCLI="$AVI_LIBS $LDFLAGSCLI"
+    [ -n "$AVI_CFLAGS" ] && CFLAGS="$CFLAGS $AVI_CFLAGS"
+    define HAVE_AVI_OUTPUT
+fi
+
 if [ "$avs" = "auto" ] ; then
     avs="no"
     # cygwin can use avisynth if it can use LoadLibrary
@@ -1678,6 +1709,7 @@ interlaced:    $interlaced
 avs:           $avs
 lavf:          $lavf
 ffms:          $ffms
+avi output:    $avi_output
 audio:         $audio$(test $audio = "yes" && echo " ($audio_encs)")
 mp4:           $mp4
 gpl:           $gpl
