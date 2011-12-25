@@ -843,6 +843,9 @@ static void help( x264_param_t *defaults, int longhelp )
                                        defaults->analyse.f_psy_rd, defaults->analyse.f_psy_trellis );
     H2( "      --no-psy                Disable all visual optimizations that worsen\n"
         "                              both PSNR and SSIM.\n" );
+    H1( "      --fgo <int>             Activates Film Grain Optimization. (requires subme>=7) [%d]\n", defaults->analyse.i_fgo );
+    H2( "                                  - 5: weak FGO\n"
+        "                                  - 15: strong FGO\n" );
     H2( "      --no-mixed-refs         Don't decide references on a per partition basis\n" );
     H2( "      --no-chroma-me          Ignore chroma in motion estimation\n" );
     H1( "      --no-8x8dct             Disable adaptive spatial transform size\n" );
@@ -1160,6 +1163,7 @@ static struct option long_options[] =
     { "no-dct-decimate",   no_argument, NULL, 0 },
     { "aq-strength", required_argument, NULL, 0 },
     { "aq-mode",     required_argument, NULL, 0 },
+    { "fgo",         required_argument, NULL, 0 },
     { "deadzone-inter", required_argument, NULL, 0 },
     { "deadzone-intra", required_argument, NULL, 0 },
     { "level",       required_argument, NULL, 0 },
