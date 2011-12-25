@@ -471,6 +471,14 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
     }
     info->vfr = 0;
 
+    if( opt->bit_depth > 8 )
+    {
+        FAIL_IF_ERROR( info->width & 3, "avisynth 16bit hack requires that width is at least mod4\n" )
+        x264_cli_log( "avs", X264_LOG_INFO, "avisynth 16bit hack enabled\n" );
+        info->csp |= X264_CSP_HIGH_DEPTH;
+        info->width >>= 1;
+    }
+
     *p_handle = h;
     return 0;
 }
