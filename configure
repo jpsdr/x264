@@ -40,6 +40,7 @@ Advanced options:
   --enable-debug           add -g
   --enable-gprof           add -pg
   --enable-strip           add -s
+  --enable-lto             enables LTO (requires gcc compiled with --ebable-lto)
   --enable-pic             build position-independent code
 
 Cross-compilation:
@@ -362,6 +363,7 @@ interlaced="yes"
 debug="no"
 gprof="no"
 strip="no"
+lto="no"
 pic="no"
 bit_depth="8"
 chroma_format="all"
@@ -500,6 +502,10 @@ for opt do
             CFLAGS="$CFLAGS -pg"
             LDFLAGS="$LDFLAGS -pg"
             gprof="yes"
+            ;;
+        --enable-lto)
+            CFLAGS="$CFLAGS -flto"
+            lto="yes"
             ;;
         --enable-strip)
             strip="yes"
@@ -1338,12 +1344,22 @@ fi
 
 if [ "$debug" = "yes" ]; then
     CFLAGS="-O1 -g $CFLAGS"
+elif cc_check '' -Ofast ; then
+    CFLAGS="-Ofast -ffast-math $CFLAGS"
 else
     CFLAGS="-O3 -ffast-math $CFLAGS"
 fi
 
 if cc_check '' -fno-tree-vectorize ; then
     CFLAGS="$CFLAGS -fno-tree-vectorize"
+fi
+
+if [ "$lto" = "yes" ]; then
+    if cc_check '' -flto ; then
+        LDFLAGSCLI="$LDFLAGSCLI -fwhole-program"
+    else
+        lto = "no"
+    fi
 fi
 
 if [ $SYS = WINDOWS -a $ARCH = X86 -a $compiler = GNU ] ; then
@@ -1631,6 +1647,7 @@ filters:       $filters
 debug:         $debug
 gprof:         $gprof
 strip:         $strip
+LTO:           $lto
 PIC:           $pic
 bit depth:     $bit_depth
 chroma format: $chroma_format
