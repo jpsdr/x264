@@ -778,6 +778,8 @@ static void help( x264_param_t *defaults, int longhelp )
         "                                  - 3: Auto-variance AQ with bias to dark scenes\n", defaults->rc.i_aq_mode );
     H1( "      --aq-strength <float>   Reduces blocking and blurring in flat and\n"
         "                              textured areas. [%.1f]\n", defaults->rc.f_aq_strength );
+    H1( "      --fade-compensate <float> Allocate more bits to fades [%.1f]\n", defaults->rc.f_fade_compensate );
+    H2( "                                  Approximate sane range: 0.0 - 1.0 (requires mb-tree)\n" );
     H1( "\n" );
     H0( "  -p, --pass <integer>        Enable multipass ratecontrol\n"
         "                                  - 1: First pass, creates stats file\n"
@@ -1164,6 +1166,7 @@ static struct option long_options[] =
     { "aq-strength", required_argument, NULL, 0 },
     { "aq-mode",     required_argument, NULL, 0 },
     { "fgo",         required_argument, NULL, 0 },
+    { "fade-compensate", required_argument, NULL, 0 },
     { "deadzone-inter", required_argument, NULL, 0 },
     { "deadzone-intra", required_argument, NULL, 0 },
     { "level",       required_argument, NULL, 0 },
