@@ -430,6 +430,7 @@ typedef struct x264_param_t
 
         int         i_aq_mode;      /* psy adaptive QP. (X264_AQ_*) */
         float       f_aq_strength;
+        float       f_fade_compensate; /* Give more bits to fades. */
         int         b_mb_tree;      /* Macroblock-tree ratecontrol. */
         int         i_lookahead;
 
