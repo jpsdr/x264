@@ -137,6 +137,7 @@ void x264_param_default( x264_param_t *param )
     param->analyse.f_psy_rd = 1.0;
     param->analyse.b_psy = 1;
     param->analyse.f_psy_trellis = 0;
+    param->analyse.i_fgo = 0;
     param->analyse.i_me_range = 16;
     param->analyse.i_subpel_refine = 7;
     param->analyse.b_mixed_references = 1;
@@ -431,6 +432,7 @@ void x264_param_apply_fastfirstpass( x264_param_t *param )
         param->analyse.i_subpel_refine = X264_MIN( 2, param->analyse.i_subpel_refine );
         param->analyse.i_trellis = 0;
         param->analyse.b_fast_pskip = 1;
+        param->analyse.i_fgo = 0;
     }
 }
 
@@ -994,6 +996,8 @@ int x264_param_parse( x264_param_t *p, const char *name, const char *value )
         p->rc.i_aq_mode = atoi(value);
     OPT("aq-strength")
         p->rc.f_aq_strength = atof(value);
+    OPT("fgo")
+        p->analyse.i_fgo = atoi(value);
     OPT("pass")
     {
         int pass = x264_clip3( atoi(value), 0, 3 );
@@ -1374,6 +1378,7 @@ char *x264_param2string( x264_param_t *p, int b_res )
         s += sprintf( s, " stitchable=%d", p->b_stitchable );
 
     s += sprintf( s, " constrained_intra=%d", p->b_constrained_intra );
+    s += sprintf( s, " fgo=%d", p->analyse.i_fgo );
 
     s += sprintf( s, " bframes=%d", p->i_bframe );
     if( p->i_bframe )

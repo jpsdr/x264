@@ -389,6 +389,7 @@ typedef struct x264_param_t
         int          b_fast_pskip; /* early SKIP detection on P-frames */
         int          b_dct_decimate; /* transform coefficient thresholding on P-frames */
         int          i_noise_reduction; /* adaptive pseudo-deadzone */
+        int          i_fgo; /* psy film grain optimization */
         float        f_psy_rd; /* Psy RD strength */
         float        f_psy_trellis; /* Psy trellis strength */
         int          b_psy; /* Toggle all psy optimizations */
