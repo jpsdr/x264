@@ -73,6 +73,7 @@ void x264_param_default( x264_param_t *param )
     param->i_fps_num       = 25;
     param->i_fps_den       = 1;
     param->i_level_idc     = -1;
+    param->b_level_force   = 0;
     param->i_slice_max_size = 0;
     param->i_slice_max_mbs = 0;
     param->i_slice_count = 0;
@@ -683,6 +684,8 @@ int x264_param_parse( x264_param_t *p, const char *name, const char *value )
         else
             p->i_level_idc = atoi(value);
     }
+    OPT("level-force")
+        p->b_level_force = atobool(value);
     OPT("bluray-compat")
         p->b_bluray_compat = atobool(value);
     OPT("avcintra-class")
