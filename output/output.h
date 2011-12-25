@@ -60,5 +60,6 @@ extern const cli_output_t raw_output;
 extern const cli_output_t mkv_output;
 extern const cli_output_t mp4_output;
 extern const cli_output_t flv_output;
+extern const cli_output_t avi_output;
 
 #endif
