@@ -1076,6 +1076,7 @@ static void help( x264_param_t *defaults, int longhelp )
     H0( "      --seek <integer>        First frame to encode\n" );
     H0( "      --frames <integer>      Maximum number of frames to encode\n" );
     H0( "      --level <string>        Specify level (as defined by Annex A)\n" );
+    H1( "      --level-force           Force params to specifyed level\n" );
     H1( "      --bluray-compat         Enable compatibility hacks for Blu-ray support\n" );
     H1( "      --avcintra-class <integer> Use compatibility hacks for AVC-Intra class\n"
         "                                  - 50, 100, 200\n" );
@@ -1296,6 +1297,7 @@ static struct option long_options[] =
     { "deadzone-inter", required_argument, NULL, 0 },
     { "deadzone-intra", required_argument, NULL, 0 },
     { "level",       required_argument, NULL, 0 },
+    { "level-force",       no_argument, NULL, 0 },
     { "ratetol",     required_argument, NULL, 0 },
     { "vbv-maxrate", required_argument, NULL, 0 },
     { "vbv-bufsize", required_argument, NULL, 0 },
