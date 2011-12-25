@@ -477,6 +477,11 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
         x264_cli_log( "avs", X264_LOG_INFO, "avisynth 16bit hack enabled\n" );
         info->csp |= X264_CSP_HIGH_DEPTH;
         info->width >>= 1;
+        if( opt->bit_depth == BIT_DEPTH )
+        {
+            /* HACK: totally skips depth filter to prevent dither error */
+            info->csp |= X264_CSP_SKIP_DEPTH_FILTER;
+        }
     }
 
     *p_handle = h;
