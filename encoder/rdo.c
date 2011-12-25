@@ -141,7 +141,7 @@ static inline int ssd_plane( x264_t *h, int size, int p, int x, int y )
         }
         satd = (satd * h->mb.i_psy_rd * h->mb.i_psy_rd_lambda + 128) >> 8;
     }
-    return h->pixf.ssd[size](fenc, FENC_STRIDE, fdec, FDEC_STRIDE) + satd;
+    return h->pixf.rdcmp[size](fenc, FENC_STRIDE, fdec, FDEC_STRIDE, h->param.analyse.i_fgo) + satd;
 }
 
 static inline int ssd_mb( x264_t *h )

@@ -370,9 +370,33 @@ static int check_pixel( int cpu_ref, int cpu_new )
     } \
     report( "pixel " #name " :" );
 
+#define TEST_PIXEL_WEIGHT( name, align ) \
+    ok = 1, used_asm = 0; \
+    for( int i = 0; i < 8; i++ ) \
+    { \
+        int res_c, res_asm; \
+        if( pixel_asm.name[i] != pixel_ref.name[i] ) \
+        { \
+            for( int j = 0; j < 64; j++ ) \
+            { \
+                used_asm = 1; \
+                res_c   = call_c( pixel_c.name[i], pbuf1, 32, pbuf2+j*!align, 16, j ); \
+                res_asm = call_a( pixel_asm.name[i], pbuf1, 32, pbuf2+j*!align, 16, j ); \
+                if( res_c != res_asm ) \
+                { \
+                    ok = 0; \
+                    fprintf( stderr, #name "[%d]: %d != %d [FAILED]\n", i, res_c, res_asm ); \
+                    break; \
+                } \
+            } \
+        } \
+    } \
+    report( "pixel " #name " :" );
+
     TEST_PIXEL( sad, 0 );
     TEST_PIXEL( sad_aligned, 1 );
-    TEST_PIXEL( ssd, 1 );
+    TEST_PIXEL_WEIGHT( ssd, 1 );
+    TEST_PIXEL_WEIGHT( nssd, 1 );
     TEST_PIXEL( satd, 0 );
     TEST_PIXEL( sa8d, 1 );
 
