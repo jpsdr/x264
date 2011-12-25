@@ -194,11 +194,12 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
     FAIL_IF_ERROR( i == h->lavf->nb_streams, "could not find video stream\n" );
     h->stream_id       = i;
     h->next_frame      = 0;
-    AVCodecContext *c  = h->lavf->streams[i]->codec;
-    info->fps_num      = h->lavf->streams[i]->avg_frame_rate.num;
-    info->fps_den      = h->lavf->streams[i]->avg_frame_rate.den;
-    info->timebase_num = h->lavf->streams[i]->time_base.num;
-    info->timebase_den = h->lavf->streams[i]->time_base.den;
+    AVStream *s        = h->lavf->streams[i];
+    AVCodecContext *c  = s->codec;
+    info->fps_num      = s->avg_frame_rate.num;
+    info->fps_den      = s->avg_frame_rate.den;
+    info->timebase_num = s->time_base.num;
+    info->timebase_den = s->time_base.den;
     /* lavf is thread unsafe as calling av_read_frame invalidates previously read AVPackets */
     info->thread_safe  = 0;
     h->vfr_input       = info->vfr;
@@ -206,7 +207,8 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
     if( opt->demuxer_threads > 1 )
         c->thread_count = opt->demuxer_threads;
 
-    FAIL_IF_ERROR( avcodec_open2( c, avcodec_find_decoder( c->codec_id ), NULL ),
+    AVCodec *p         = avcodec_find_decoder(c->codec_id);
+    FAIL_IF_ERROR( avcodec_open2( c, p, NULL ),
                    "could not find decoder for video stream\n" );
 
     /* prefetch the first frame and set/confirm flags */
@@ -219,7 +221,7 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
     info->width      = c->width;
     info->height     = c->height;
     info->csp        = h->first_pic->img.csp;
-    info->num_frames = h->lavf->streams[i]->nb_frames;
+    info->num_frames = s->nb_frames;
     info->sar_height = c->sample_aspect_ratio.den;
     info->sar_width  = c->sample_aspect_ratio.num;
     info->fullrange |= c->color_range == AVCOL_RANGE_JPEG;
@@ -228,6 +230,23 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
     if( !strcasecmp( get_filename_extension( psz_filename ), "avs" ) &&
         (c->pix_fmt == AV_PIX_FMT_BGRA || c->pix_fmt == AV_PIX_FMT_BGR24) )
         info->csp |= X264_CSP_VFLIP;
+
+    /* show video info */
+    double duration = s->duration * av_q2d(s->time_base);
+    const AVPixFmtDescriptor *pix_desc = av_pix_fmt_desc_get(c->pix_fmt);
+    x264_cli_log( "lavf", X264_LOG_INFO,
+                  "\n Format    : %s"
+                  "\n Codec     : %s ( %s )"
+                  "\n PixFmt    : %s"
+                  "\n Framerate : %d/%d"
+                  "\n Timebase  : %d/%d"
+                  "\n Duration  : %d:%02d:%02d\n",
+                  format ? format->name : h->lavf->iformat->name,
+                  p->name, p->long_name,
+                  pix_desc->name,
+                  s->avg_frame_rate.num, s->avg_frame_rate.den,
+                  s->time_base.num, s->time_base.den,
+                  (int)duration / 60 / 60, (int)duration / 60 % 60, (int)duration - (int)duration / 60 * 60 );
 
     *p_handle = h;
 
