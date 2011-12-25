@@ -907,6 +907,22 @@ int x264_validate_levels( x264_t *h, int verbose )
     while( l->level_idc != 0 && l->level_idc != h->param.i_level_idc )
         l++;
 
+    if( h->param.b_level_force && verbose )
+    {
+        int frame_ref_bak = h->param.i_frame_reference;
+        while( dpb > l->dpb && h->param.i_frame_reference > 1 )
+        {
+            h->param.i_frame_reference--;
+            h->sps->vui.i_max_dec_frame_buffering =
+            h->sps->i_num_ref_frames = X264_MIN(16, X264_MAX3(h->param.i_frame_reference, 1 + h->sps->vui.i_num_reorder_frames,
+                                                              h->param.i_bframe_pyramid ? 4 : 1 ));
+            h->sps->i_num_ref_frames -= h->param.i_bframe_pyramid == X264_B_PYRAMID_STRICT;
+            dpb = mbs * 384 * h->sps->vui.i_max_dec_frame_buffering;
+        }
+        if( frame_ref_bak != h->param.i_frame_reference )
+            x264_log( h, X264_LOG_INFO, "Force ref-frames %d -> %d\n", frame_ref_bak, h->param.i_frame_reference );
+    }
+
     if( l->frame_size < mbs
         || l->frame_size*8 < h->sps->i_mb_width * h->sps->i_mb_width
         || l->frame_size*8 < h->sps->i_mb_height * h->sps->i_mb_height )
@@ -920,8 +936,23 @@ int x264_validate_levels( x264_t *h, int verbose )
     if( (val) > (limit) ) \
         ERROR( name " (%"PRId64") > level limit (%d)\n", (int64_t)(val), (limit) );
 
-    CHECK( "VBV bitrate", (l->bitrate * cbp_factor) / 4, h->param.rc.i_vbv_max_bitrate );
-    CHECK( "VBV buffer", (l->cpb * cbp_factor) / 4, h->param.rc.i_vbv_buffer_size );
+    int vbv_br_limit = (l->bitrate * cbp_factor) / 4;
+    int vbv_buf_limit = (l->cpb * cbp_factor) / 4;
+    if( h->param.b_level_force && verbose )
+    {
+        if( h->param.rc.i_vbv_max_bitrate > vbv_br_limit )
+        {
+            x264_log( h, X264_LOG_INFO, "Force VBV-bitrate %d -> %d\n", h->param.rc.i_vbv_max_bitrate, vbv_br_limit );
+            h->param.rc.i_vbv_max_bitrate = vbv_br_limit;
+        }
+        if( h->param.rc.i_vbv_buffer_size > vbv_buf_limit )
+        {
+            x264_log( h, X264_LOG_INFO, "Force VBV-buffer %d -> %d\n", h->param.rc.i_vbv_buffer_size, vbv_buf_limit );
+            h->param.rc.i_vbv_buffer_size = vbv_buf_limit;
+        }
+    }
+    CHECK( "VBV bitrate", vbv_br_limit, h->param.rc.i_vbv_max_bitrate );
+    CHECK( "VBV buffer", vbv_buf_limit, h->param.rc.i_vbv_buffer_size );
     CHECK( "MV range", l->mv_range, h->param.analyse.i_mv_range );
     CHECK( "interlaced", !l->frame_only, h->param.b_interlaced );
     CHECK( "fake interlaced", !l->frame_only, h->param.b_fake_interlaced );
