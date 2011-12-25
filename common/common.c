@@ -1521,7 +1521,7 @@ char *x264_param2string( x264_param_t *p, int b_res )
     if( p->rc.i_rc_method == X264_RC_ABR || p->rc.i_rc_method == X264_RC_CRF )
     {
         if( p->rc.i_rc_method == X264_RC_CRF )
-            s += sprintf( s, " crf=%.1f", p->rc.f_rf_constant );
+            s += sprintf( s, " crf=%.4f", p->rc.f_rf_constant );
         else
             s += sprintf( s, " bitrate=%d ratetol=%.1f",
                           p->rc.i_bitrate, p->rc.f_rate_tolerance );
