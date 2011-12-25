@@ -1137,7 +1137,7 @@ static int x264_validate_parameters( x264_t *h, int b_open )
     if( h->param.rc.f_aq_strength == 0 )
         h->param.rc.i_aq_mode = 0;
 
-    if( h->param.i_log_level < X264_LOG_INFO )
+    if( h->param.i_log_level < X264_LOG_INFO && (!h->param.psz_log_file || h->param.i_log_file_level < X264_LOG_INFO) )
     {
         h->param.analyse.b_psnr = 0;
         h->param.analyse.b_ssim = 0;
@@ -2906,7 +2906,7 @@ cont:
 
         int b_intra = IS_INTRA( h->mb.i_type );
         int b_skip = IS_SKIP( h->mb.i_type );
-        if( h->param.i_log_level >= X264_LOG_INFO || h->param.rc.b_stat_write )
+        if( h->param.i_log_level >= X264_LOG_INFO || (h->param.psz_log_file && h->param.i_log_file_level >= X264_LOG_INFO) || h->param.rc.b_stat_write )
         {
             if( !b_intra && !b_skip && !IS_DIRECT( h->mb.i_type ) )
             {
@@ -2926,7 +2926,7 @@ cont:
             }
         }
 
-        if( h->param.i_log_level >= X264_LOG_INFO )
+        if( h->param.i_log_level >= X264_LOG_INFO || (h->param.psz_log_file && h->param.i_log_file_level >= X264_LOG_INFO) )
         {
             if( h->mb.i_cbp_luma | h->mb.i_cbp_chroma )
             {
