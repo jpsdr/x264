@@ -667,6 +667,11 @@ static void help( x264_param_t *defaults, int longhelp )
         "                                    --bframes {+2} --deblock 1:1\n"
         "                                    --psy-rd 0.4:<unset> --aq-strength 0.6\n"
         "                                    --ref {Double if >1 else 1}\n"
+        "                                  - touhou (psy tuning):\n"
+        "                                    --aq-strength 1.3 --deblock -1:-1\n"
+        "                                    --partitions {p4x4 if p8x8 set}\n"
+        "                                    --psy-rd <unset>:0.2\n"
+        "                                    --ref {Double if >1 else 1}\n"
         "                                  - grain (psy tuning):\n"
         "                                    --aq-strength 0.5 --no-dct-decimate\n"
         "                                    --deadzone-inter 6 --deadzone-intra 6\n"
@@ -687,7 +692,7 @@ static void help( x264_param_t *defaults, int longhelp )
         "                                    --bframes 0 --force-cfr --no-mbtree\n"
         "                                    --sync-lookahead 0 --sliced-threads\n"
         "                                    --rc-lookahead 0\n" );
-    else H0( "                                  - psy tunings: film,animation,grain,\n"
+    else H0( "                                  - psy tunings: film,animation,touhou,grain,\n"
              "                                                 stillimage,psnr,ssim\n"
              "                                  - other tunings: fastdecode,zerolatency\n" );
     H2( "      --slow-firstpass        Don't force these faster settings with --pass 1:\n"
