@@ -109,7 +109,9 @@ void x264_sps_init( x264_sps_t *sps, int i_id, x264_param_t *param )
                                csp >= X264_CSP_I422 ? CHROMA_422 : CHROMA_420;
 
     sps->b_qpprime_y_zero_transform_bypass = param->rc.i_rc_method == X264_RC_CQP && param->rc.i_qp_constant == 0;
-    if( sps->b_qpprime_y_zero_transform_bypass || sps->i_chroma_format_idc == CHROMA_444 )
+    if( param->b_profile_force && param->i_profile )
+        sps->i_profile_idc  = param->i_profile;
+    else if( sps->b_qpprime_y_zero_transform_bypass || sps->i_chroma_format_idc == CHROMA_444 )
         sps->i_profile_idc  = PROFILE_HIGH444_PREDICTIVE;
     else if( sps->i_chroma_format_idc == CHROMA_422 )
         sps->i_profile_idc  = PROFILE_HIGH422;

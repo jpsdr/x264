@@ -74,6 +74,8 @@ void x264_param_default( x264_param_t *param )
     param->i_fps_den       = 1;
     param->i_level_idc     = -1;
     param->b_level_force   = 0;
+    param->i_profile       = 0;
+    param->b_profile_force = 0;
     param->i_slice_max_size = 0;
     param->i_slice_max_mbs = 0;
     param->i_slice_count = 0;
@@ -518,6 +520,7 @@ int x264_param_apply_profile( x264_param_t *param, const char *profile )
         param->i_cqm_preset = X264_CQM_FLAT;
         param->psz_cqm_file = NULL;
     }
+    param->i_profile = p;
     return 0;
 }
 
@@ -686,6 +689,8 @@ int x264_param_parse( x264_param_t *p, const char *name, const char *value )
     }
     OPT("level-force")
         p->b_level_force = atobool(value);
+    OPT("profile-force")
+        p->b_profile_force = atobool(value);
     OPT("bluray-compat")
         p->b_bluray_compat = atobool(value);
     OPT("avcintra-class")
