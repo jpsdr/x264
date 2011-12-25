@@ -158,6 +158,12 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
     const FFMS_Frame *frame = FFMS_GetFrame( h->video_source, 0, &e );
     FAIL_IF_ERROR( !frame, "could not read frame 0\n" )
 
+    /* -1 = 'unset' (internal) , 2 from lavf|ffms = 'unset' */
+    if( frame->ColorSpace >= 0 && frame->ColorSpace <= 8 && frame->ColorSpace != 2 )
+        info->colormatrix = frame->ColorSpace;
+    else
+        info->colormatrix = -1;
+
     info->fullrange  = 0;
     info->width      = frame->EncodedWidth;
     info->height     = frame->EncodedHeight;

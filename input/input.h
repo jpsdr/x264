@@ -50,6 +50,7 @@ typedef struct
 /* properties of the source given by the demuxer */
 typedef struct
 {
+    int colormatrix;
     int csp;         /* colorspace of the input */
     uint32_t fps_num;
     uint32_t fps_den;
