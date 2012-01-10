@@ -876,12 +876,28 @@ static void help( x264_param_t *defaults, int longhelp )
     H2( "      --qcomp <float>         QP curve compression [%.2f]\n", defaults->rc.f_qcompress );
     H2( "      --cplxblur <float>      Reduce fluctuations in QP (before curve compression) [%.1f]\n", defaults->rc.f_complexity_blur );
     H2( "      --qblur <float>         Reduce fluctuations in QP (after curve compression) [%.1f]\n", defaults->rc.f_qblur );
-    H2( "      --zones <zone0>/<zone1>/...  Tweak the bitrate of regions of the video\n" );
-    H2( "                              Each zone is of the form\n"
-        "                                  <start frame>,<end frame>,<option>\n"
-        "                                  where <option> is either\n"
-        "                                      q=<integer> (force QP)\n"
-        "                                  or  b=<float> (bitrate multiplier)\n" );
+    H0( "      --zones <zone0>/<zone1>/...  Tweak the options of regions of the video\n" );
+    H1( "                              Each zone is of the form\n"
+        "                                  <start frame>,<end frame>,<options>\n"
+        "                                  where <options> is a comma separated list\n"
+        "                                      either q=<integer> (force QP)\n"
+        "                                      or     b=<float> (bitrate multiplier)\n"
+        "                                  can only be used as the first option\n" );
+    H2( "                              Other available options for use in zones are:\n"
+        "                                  (no-)chroma-me    (no-)dct-decimate   deblock=<integer>:<integer>\n"
+        "                                  no-deblock        b-bias=<integer>    deadzone-intra=<integer>\n"
+        "                                  (no-)fast-pskip   subme=<integer>     deadzone-inter=<integer>\n"
+        "                                  ref=<integer>     direct=<string>     scenecut=<integer>\n"
+        "                                  nr=<integer>      trellis=<integer>   (no-)mixed-refs\n"
+        "                                  me=<string>       merange=<integer>   psy-rd=<float>:<float>\n"
+        "                                  no-8x8dct         crf=<float>         b-pyramid=<string>\n"
+        "                                  fgo=<int>\n"
+        "                              Limitations:\n"
+        "                                  The number of reference frames for a zone can never exceed what was specified with --ref\n"
+        "                                  scenecut can not be turned on and off; only varied if originally active (>0)\n"
+        "                                  merange can not exceed what was originally specified if --me esa/tesa\n"
+        "                                  subme can't be changed if the original commandline specified it as 0\n"
+        "                                  me can't be set to esa or tesa if --me was originally specified as dia, hex, or umh\n" );
     H2( "      --qpfile <string>       Force frametypes and QPs for some or all frames\n"
         "                              Format of each line: framenumber frametype QP\n"
         "                              QP is optional (none lets x264 choose). Frametypes: I,i,K,P,B,b.\n"
