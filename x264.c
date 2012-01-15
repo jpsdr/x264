@@ -645,6 +645,51 @@ static void help( x264_param_t *defaults, int longhelp )
     H0( "\n" );
     H0( "Presets:\n" );
     H0( "\n" );
+    H0( "      --device <string>       Force the limits of a device(with latest driver/firmware)\n");
+    H1( "                                  Overrides all settings over the limits.\n"
+        "                                  Multiple devices are separated by commas.\n"
+        "                                  Auto resize not implemented.\n" );
+    H2( ""
+#if X264_CHROMA_FORMAT <= X264_CSP_I420 && BIT_DEPTH==8
+        "                                  - dxva:\n"
+        "                                    --profile high --level %.1f --level-force\n"
+        "                                  - bluray:\n"
+        "                                    --profile high --level %.1f --level-force\n"
+        "                                     --bluray-compat --vbv-maxrate %d --vbv-bufsize %d\n"
+        "                                  - psp:\n"
+        "                                    --profile main --level-force\n"
+        "                                    --ref 3 --b-pyramid none --weightp 1\n"
+        "                                    --vbv-maxrate %d --vbv-bufsize %d\n"
+        "                                  - psv:\n"
+        "                                    --profile high --level-force\n"
+        "                                  - ps3:\n"
+        "                                    --profile high --level %.1f --level-force\n"
+        "                                    --vbv-maxrate %d --vbv-bufsize %d\n"
+        "                                  - xbox/xbox360:\n"
+        "                                    --profile high --level %.1f --level-force\n"
+        "                                    --vbv-maxrate %d --vbv-bufsize %d\n"
+        "                                  - iphone/ipad:\n"
+        "                                    --profile high --level %.1f --level-force\n"
+        "                                  - generic(with maximum capability of most other devices):\n"
+        "                                    --profile main --level %.1f --level-force\n"
+        "                                    --ref 3 --bframes 3 --b-pyramid none --weightp 1\n"
+        "                                    --vbv-maxrate %d --vbv-bufsize %d\n"
+#endif
+#if X264_CHROMA_FORMAT <= X264_CSP_I420 && BIT_DEPTH==8
+        , X264_LEVEL_IDC_DXVA / 10., X264_LEVEL_IDC_BLURAY / 10., X264_VBV_MAXRATE_BLURAY, X264_VBV_BUFSIZE_BLURAY,
+        X264_VBV_MAXRATE_PSP, X264_VBV_BUFSIZE_PSP,
+        X264_LEVEL_IDC_PS3 / 10., X264_VBV_MAXRATE_PS3, X264_VBV_BUFSIZE_PS3,
+        X264_LEVEL_IDC_XBOX / 10., X264_VBV_MAXRATE_XBOX, X264_VBV_BUFSIZE_XBOX, X264_LEVEL_IDC_IPHONE / 10.,
+        X264_LEVEL_IDC_GENERIC / 10., X264_VBV_MAXRATE_GENERIC, X264_VBV_BUFSIZE_GENERIC
+#endif
+         );
+    else H0(
+        "                                  - "
+#if X264_CHROMA_FORMAT <= X264_CSP_I420 && BIT_DEPTH==8
+        "dxva,bluray,psp,psv,ps3\n"
+        "                                  - xbox,xbox360,iphone,ipad,generic"
+#endif
+        "\n" );
     H0( "      --profile <string>      Force the limits of an H.264 profile\n"
         "                                  Overrides all settings.\n" );
     H2(
@@ -1154,6 +1199,7 @@ typedef enum
     OPT_PROFILE,
     OPT_PRESET,
     OPT_TUNE,
+    OPT_DEVICE,
     OPT_SLOWFIRSTPASS,
     OPT_FULLHELP,
     OPT_FPS,
@@ -1213,6 +1259,7 @@ static struct option long_options[] =
     { "profile-force",     no_argument, NULL, 0 },
     { "preset",      required_argument, NULL, OPT_PRESET },
     { "tune",        required_argument, NULL, OPT_TUNE },
+    { "device",      required_argument, NULL, OPT_DEVICE },
     { "slow-firstpass",    no_argument, NULL, OPT_SLOWFIRSTPASS },
     { "bitrate",     required_argument, NULL, 'B' },
     { "bframes",     required_argument, NULL, 'b' },
@@ -1684,6 +1731,7 @@ static int parse( int argc, char **argv, x264_param_t *param, cli_opt_t *opt )
     cli_output_opt_t output_opt;
     char *preset = NULL;
     char *tune = NULL;
+    char *device = NULL;
 
     char *audio_enc      = "none";
     char *audio_filename = NULL;
@@ -1823,6 +1871,9 @@ static int parse( int argc, char **argv, x264_param_t *param, cli_opt_t *opt )
                 break;
             case OPT_TUNE:
             case OPT_PRESET:
+                break;
+            case OPT_DEVICE:
+                device = optarg;
                 break;
             case OPT_PROFILE:
                 profile = optarg;
@@ -2001,7 +2052,7 @@ generic_option:
         x264_param_apply_fastfirstpass( param );
 
     /* Apply profile restrictions. */
-    if( x264_param_apply_profile( param, profile ) < 0 )
+    if( x264_param_apply_profile( param, profile, device ) < 0 )
         return -1;
 
     /* Get the file name */

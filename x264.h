@@ -305,6 +305,42 @@ typedef struct x264_zone_t
 #define X264_VBV_BUFSIZE_HIGH    -2 /* Set the VBV bufsize to fit in the target level of High Profile */
 #define X264_VBV_BUFSIZE_MAIN    -1 /* Set the VBV bufsize to fit in the target level of Main Profile */
 
+/* Device capability */
+#define X264_LEVEL_IDC_DXVA         41
+#define X264_LEVEL_IDC_BLURAY       41
+#define X264_LEVEL_IDC_PSP          30 /* Actually the latest firmware supports Level 5.2, thus not restricted */
+#define X264_LEVEL_IDC_PSV          31 /* Actually the latest firmware supports Level 5.2, thus not restricted */
+#define X264_LEVEL_IDC_PS3          42
+#define X264_LEVEL_IDC_XBOX         41
+#define X264_LEVEL_IDC_IPHONE       41
+#define X264_LEVEL_IDC_GENERIC      30
+#define X264_VBV_MAXRATE_BLURAY  40000 /* Vbv restriction is taken from MeGUI */
+#define X264_VBV_BUFSIZE_BLURAY  30000
+#define X264_VBV_MAXRATE_PSP     10000
+#define X264_VBV_BUFSIZE_PSP     10000
+#define X264_VBV_MAXRATE_PS3     31250
+#define X264_VBV_BUFSIZE_PS3     31250
+#define X264_VBV_MAXRATE_XBOX    24000
+#define X264_VBV_BUFSIZE_XBOX    24000
+#define X264_VBV_MAXRATE_GENERIC 10000
+#define X264_VBV_BUFSIZE_GENERIC 10000
+
+/* Device mask */
+#define X264_DEVICE_HIGH_DEPTH 0x0001 /* Device supports high bit depth */
+#define X264_DEVICE_422        0x0002 /* Device supports 4:2:2 */
+#define X264_DEVICE_444        0x0004 /* Device supports 4:4:4 */
+#define X264_DEVICE_LOSSLESS   0x0008 /* Device supports lossless */
+#define X264_DEVICE_LEVEL_FREE 0x0010 /* Device has no level force */
+
+#define X264_DEVICE_DXVA    0x0000
+#define X264_DEVICE_BLURAY  0x0000
+#define X264_DEVICE_PSP     0x0000
+#define X264_DEVICE_PSV     0x0000
+#define X264_DEVICE_PS3     0x0000
+#define X264_DEVICE_XBOX    0x0000
+#define X264_DEVICE_IPHONE  0x0000
+#define X264_DEVICE_GENERIC 0x0000
+
 typedef struct x264_param_t
 {
     /* CPU flags */
@@ -708,7 +744,7 @@ static const char * const x264_profile_names[] = { "baseline", "main", "high", "
  *      decrease them.
  *
  *      returns 0 on success, negative on failure (e.g. invalid profile name). */
-int     x264_param_apply_profile( x264_param_t *, const char *profile );
+int     x264_param_apply_profile( x264_param_t *, const char *profile, const char *device );
 
 /****************************************************************************
  * Picture structures and functions
