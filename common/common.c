@@ -467,17 +467,213 @@ static int profile_string_to_int( const char *str )
     return -1;
 }
 
-int x264_param_apply_profile( x264_param_t *param, const char *profile )
+static int x264_generic_device_check( x264_param_t *param, const char *device, int device_mask )
 {
-    if( !profile )
-        return 0;
+    if( (device_mask & X264_DEVICE_LEVEL_FREE) == 0 )
+        param->b_level_force = 1;
 
-    int p = profile_string_to_int( profile );
+    if( (device_mask & X264_DEVICE_LOSSLESS) == 0 && (
+          (param->rc.i_rc_method == X264_RC_CQP && param->rc.i_qp_constant <= 0) ||
+          (param->rc.i_rc_method == X264_RC_CRF && (int)(param->rc.f_rf_constant + QP_BD_OFFSET) <= 0)
+        )
+      )
+    {
+        x264_log( NULL, X264_LOG_ERROR, "%s doesn't support lossless\n", device );
+        return -1;
+    }
+
+    if( (device_mask & X264_DEVICE_444) == 0 && (param->i_csp & X264_CSP_MASK) >= X264_CSP_I444 )
+    {
+        x264_log( NULL, X264_LOG_ERROR, "%s doesn't support 4:4:4\n", device );
+        return -1;
+    }
+
+    if( (device_mask & X264_DEVICE_422) == 0 && (param->i_csp & X264_CSP_MASK) >= X264_CSP_I422 )
+    {
+        x264_log( NULL, X264_LOG_ERROR, "%s doesn't support 4:2:2\n", device );
+        return -1;
+    }
+
+    if( (device_mask & X264_DEVICE_HIGH_DEPTH) == 0 && BIT_DEPTH > 8 )
+    {
+        x264_log( NULL, X264_LOG_ERROR, "%s doesn't support a bit depth of %d\n", device, BIT_DEPTH );
+        return -1;
+    }
+
+    return 0;
+}
+
+static int x264_param_restrict_device( x264_param_t *param, int i_profile, const char *device )
+{
+    char *tmp = x264_malloc( strlen( device ) + 1 );
+    if( !tmp )
+        return -1;
+    tmp = strcpy( tmp, device );
+    char *s = strtok( tmp, ",./-+" );
+    while( s )
+    {
+        if( !strcasecmp( s, "dxva" ) )
+        {
+            if( x264_generic_device_check( param, s, X264_DEVICE_DXVA ) < 0 )
+            {
+                x264_free( tmp );
+                return -1;
+            }
+            param->i_level_idc = ( param->i_level_idc < 0 ) ?
+                                 X264_LEVEL_IDC_DXVA : X264_MIN( param->i_level_idc, X264_LEVEL_IDC_DXVA );
+
+            i_profile = i_profile ? X264_MIN( i_profile, PROFILE_HIGH ) : PROFILE_HIGH;
+        }
+        else if( !strcasecmp( s, "bluray" ) || !strcasecmp( s, "blu-ray" ) )
+        {
+            if( x264_generic_device_check( param, s, X264_DEVICE_BLURAY ) < 0 )
+            {
+                x264_free( tmp );
+                return -1;
+            }
+            param->i_level_idc = ( param->i_level_idc < 0 ) ?
+                                 X264_LEVEL_IDC_BLURAY : X264_MIN( param->i_level_idc, X264_LEVEL_IDC_BLURAY );
+            param->b_bluray_compat = 1;
+
+            param->rc.i_vbv_max_bitrate = ( param->rc.i_vbv_max_bitrate <= 0 ) ?
+                                          X264_VBV_MAXRATE_BLURAY : X264_MIN( param->rc.i_vbv_max_bitrate, X264_VBV_MAXRATE_BLURAY );
+
+            param->rc.i_vbv_buffer_size = ( param->rc.i_vbv_buffer_size <= 0 ) ?
+                                          X264_VBV_BUFSIZE_BLURAY : X264_MIN( param->rc.i_vbv_buffer_size, X264_VBV_BUFSIZE_BLURAY );
+
+            i_profile = i_profile ? X264_MIN( i_profile, PROFILE_HIGH ) : PROFILE_HIGH;
+        }
+        else if( !strcasecmp( s, "psp" ) )
+        {
+            if( x264_generic_device_check( param, s, X264_DEVICE_PSP ) < 0 )
+            {
+                x264_free( tmp );
+                return -1;
+            }
+            param->i_frame_reference = X264_MIN( param->i_frame_reference, 3 );
+            param->i_bframe_pyramid = X264_B_PYRAMID_NONE;
+            param->analyse.i_weighted_pred = X264_MIN( param->analyse.i_weighted_pred, X264_WEIGHTP_SIMPLE );
+
+            param->rc.i_vbv_max_bitrate = ( param->rc.i_vbv_max_bitrate <= 0 ) ?
+                                          X264_VBV_MAXRATE_PSP : X264_MIN( param->rc.i_vbv_max_bitrate, X264_VBV_MAXRATE_PSP );
+
+            param->rc.i_vbv_buffer_size = ( param->rc.i_vbv_buffer_size <= 0 ) ?
+                                          X264_VBV_BUFSIZE_PSP : X264_MIN( param->rc.i_vbv_buffer_size, X264_VBV_BUFSIZE_PSP );
+
+            i_profile = i_profile ? X264_MIN( i_profile, PROFILE_MAIN ) : PROFILE_MAIN;
+        }
+        else if( !strcasecmp( s, "psv" ) )
+        {
+            if( x264_generic_device_check( param, s, X264_DEVICE_PSV ) < 0 )
+            {
+                x264_free( tmp );
+                return -1;
+            }
+
+            i_profile = i_profile ? X264_MIN( i_profile, PROFILE_HIGH ) : PROFILE_HIGH;
+        }
+        else if( !strcasecmp( s, "ps3" ) )
+        {
+            if( x264_generic_device_check( param, s, X264_DEVICE_PS3 ) < 0 )
+            {
+                x264_free( tmp );
+                return -1;
+            }
+            param->i_level_idc = ( param->i_level_idc < 0 ) ?
+                                 X264_LEVEL_IDC_PS3 : X264_MIN( param->i_level_idc, X264_LEVEL_IDC_PS3 );
+
+            param->rc.i_vbv_max_bitrate = ( param->rc.i_vbv_max_bitrate <= 0 ) ?
+                                          X264_VBV_MAXRATE_PS3 : X264_MIN( param->rc.i_vbv_max_bitrate, X264_VBV_MAXRATE_PS3 );
+
+            param->rc.i_vbv_buffer_size = ( param->rc.i_vbv_buffer_size <= 0 ) ?
+                                          X264_VBV_BUFSIZE_PS3 : X264_MIN( param->rc.i_vbv_buffer_size, X264_VBV_BUFSIZE_PS3 );
+
+            i_profile = i_profile ? X264_MIN( i_profile, PROFILE_HIGH ) : PROFILE_HIGH;
+        }
+        else if( !strcasecmp( s, "xbox" ) || !strcasecmp( s, "xbox360" ) )
+        {
+            if( x264_generic_device_check( param, s, X264_DEVICE_XBOX ) < 0 )
+            {
+                x264_free( tmp );
+                return -1;
+            }
+            param->i_level_idc = ( param->i_level_idc < 0 ) ?
+                                 X264_LEVEL_IDC_XBOX : X264_MIN( param->i_level_idc, X264_LEVEL_IDC_XBOX );
+
+            param->rc.i_vbv_max_bitrate = ( param->rc.i_vbv_max_bitrate <= 0 ) ?
+                                          X264_VBV_MAXRATE_XBOX : X264_MIN( param->rc.i_vbv_max_bitrate, X264_VBV_MAXRATE_XBOX );
+
+            param->rc.i_vbv_buffer_size = ( param->rc.i_vbv_buffer_size <= 0 ) ?
+                                          X264_VBV_BUFSIZE_XBOX : X264_MIN( param->rc.i_vbv_buffer_size, X264_VBV_BUFSIZE_XBOX );
+
+            i_profile = i_profile ? X264_MIN( i_profile, PROFILE_HIGH ) : PROFILE_HIGH;
+        }
+        else if( !strcasecmp( s, "iphone" ) || !strcasecmp( s, "ipad" ) )
+        {
+            if( x264_generic_device_check( param, s, X264_DEVICE_IPHONE ) < 0 )
+            {
+                x264_free( tmp );
+                return -1;
+            }
+            param->i_level_idc = ( param->i_level_idc < 0 ) ?
+                                 X264_LEVEL_IDC_IPHONE : X264_MIN( param->i_level_idc, X264_LEVEL_IDC_IPHONE );
+            /* Fix me: I have no data about iPhone/iPad's vbv restriction */
+
+            i_profile = i_profile ? X264_MIN( i_profile, PROFILE_HIGH ) : PROFILE_HIGH;
+        }
+        else if( !strcasecmp( s, "generic" ) )
+        {
+            if( x264_generic_device_check( param, s, X264_DEVICE_GENERIC ) < 0 )
+            {
+                x264_free( tmp );
+                return -1;
+            }
+            param->i_frame_reference = X264_MIN( param->i_frame_reference, 3 );
+            param->i_bframe = X264_MIN( param->i_bframe, 3 );
+            param->i_bframe_pyramid = X264_B_PYRAMID_NONE;
+            param->analyse.i_weighted_pred = X264_MIN( param->analyse.i_weighted_pred, X264_WEIGHTP_SIMPLE );
+            param->i_level_idc = ( param->i_level_idc < 0 ) ?
+                                 X264_LEVEL_IDC_GENERIC : X264_MIN( param->i_level_idc, X264_LEVEL_IDC_GENERIC );
+
+            param->rc.i_vbv_max_bitrate = ( param->rc.i_vbv_max_bitrate <= 0 ) ?
+                                          X264_VBV_MAXRATE_GENERIC : X264_MIN( param->rc.i_vbv_max_bitrate, X264_VBV_MAXRATE_GENERIC );
+
+            param->rc.i_vbv_buffer_size = ( param->rc.i_vbv_buffer_size <= 0 ) ?
+                                          X264_VBV_BUFSIZE_GENERIC : X264_MIN( param->rc.i_vbv_buffer_size, X264_VBV_BUFSIZE_GENERIC );
+
+            i_profile = i_profile ? X264_MIN( i_profile, PROFILE_MAIN ) : PROFILE_MAIN;
+        }
+        else
+        {
+            x264_log( NULL, X264_LOG_ERROR, "invalid device: %s\n", s );
+            x264_free( tmp );
+            return -1;
+        }
+        s = strtok( NULL, ",./-+" );
+    }
+    x264_free( tmp );
+    return i_profile;
+}
+
+int x264_param_apply_profile( x264_param_t *param, const char *profile, const char *device )
+{
+    int p = param->i_profile;
+
+    if( profile )
+        p = profile_string_to_int( profile );
     if( p < 0 )
     {
         x264_log( NULL, X264_LOG_ERROR, "invalid profile: %s\n", profile );
         return -1;
     }
+
+    if( device )
+        p = x264_param_restrict_device( param, p, device );
+    if( !p )                     // auto profile
+        return 0;
+    if( p < 0 )
+        return -1;
+
     if( p < PROFILE_HIGH444_PREDICTIVE && ((param->rc.i_rc_method == X264_RC_CQP && param->rc.i_qp_constant <= 0) ||
         (param->rc.i_rc_method == X264_RC_CRF && (int)(param->rc.f_rf_constant + QP_BD_OFFSET) <= 0)) )
     {
