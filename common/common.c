@@ -987,9 +987,31 @@ int x264_param_parse( x264_param_t *p, const char *name, const char *value )
     OPT("ratetol")
         p->rc.f_rate_tolerance = !strncmp("inf", value, 3) ? 1e9 : atof(value);
     OPT("vbv-maxrate")
-        p->rc.i_vbv_max_bitrate = atoi(value);
+        if( !strcmp(value, "auto_high444") )
+            p->rc.i_vbv_max_bitrate = X264_VBV_MAXRATE_HIGH444;
+        else if( !strcmp(value, "auto_high422") )
+            p->rc.i_vbv_max_bitrate = X264_VBV_MAXRATE_HIGH422;
+        else if( !strcmp(value, "auto_high10") )
+            p->rc.i_vbv_max_bitrate = X264_VBV_MAXRATE_HIGH10;
+        else if( !strcmp(value, "auto_high") )
+            p->rc.i_vbv_max_bitrate = X264_VBV_MAXRATE_HIGH;
+        else if( !strcmp(value, "auto_main") )
+            p->rc.i_vbv_max_bitrate = X264_VBV_MAXRATE_MAIN;
+        else
+            p->rc.i_vbv_max_bitrate = atoi(value);
     OPT("vbv-bufsize")
-        p->rc.i_vbv_buffer_size = atoi(value);
+        if( !strcmp(value, "auto_high444") )
+            p->rc.i_vbv_buffer_size = X264_VBV_BUFSIZE_HIGH444;
+        else if( !strcmp(value, "auto_high422") )
+            p->rc.i_vbv_buffer_size = X264_VBV_BUFSIZE_HIGH422;
+        else if( !strcmp(value, "auto_high10") )
+            p->rc.i_vbv_buffer_size = X264_VBV_BUFSIZE_HIGH10;
+        else if( !strcmp(value, "auto_high") )
+            p->rc.i_vbv_buffer_size = X264_VBV_BUFSIZE_HIGH;
+        else if( !strcmp(value, "auto_main") )
+            p->rc.i_vbv_buffer_size = X264_VBV_BUFSIZE_MAIN;
+        else
+            p->rc.i_vbv_buffer_size = atoi(value);
     OPT("vbv-init")
         p->rc.f_vbv_buffer_init = atof(value);
     OPT2("ipratio", "ip-factor")

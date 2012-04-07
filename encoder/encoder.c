@@ -634,6 +634,54 @@ static int x264_validate_parameters( x264_t *h, int b_open )
         }
     }
 
+    h->param.i_frame_reference = x264_clip3( h->param.i_frame_reference, 1, X264_REF_MAX );
+
+    {
+        const x264_level_t *l = x264_levels;
+        if( h->param.i_level_idc == X264_LEVEL_IDC_AUTO )
+        {
+            int maxrate_bak = h->param.rc.i_vbv_max_bitrate;
+            if( h->param.rc.i_rc_method == X264_RC_ABR && h->param.rc.i_vbv_buffer_size <= 0 )
+                h->param.rc.i_vbv_max_bitrate = h->param.rc.i_bitrate * 2;
+            x264_sps_init( h->sps, h->param.i_sps_id, &h->param );
+            do h->param.i_level_idc = l->level_idc;
+                while( l[1].level_idc && x264_validate_levels( h, 0 ) && l++ );
+            h->param.rc.i_vbv_max_bitrate = maxrate_bak;
+        }
+        else
+        {
+            while( l->level_idc && l->level_idc != h->param.i_level_idc )
+                l++;
+            if( l->level_idc == 0 )
+            {
+                x264_log( h, X264_LOG_ERROR, "invalid level_idc: %d\n", h->param.i_level_idc );
+                return -1;
+            }
+        }
+        if( h->param.rc.i_vbv_max_bitrate < 0 )
+        {
+            int cbp_factor = h->param.rc.i_vbv_max_bitrate == X264_VBV_MAXRATE_HIGH444 ? 16 :
+                             h->param.rc.i_vbv_max_bitrate == X264_VBV_MAXRATE_HIGH422 ? 16 :
+                             h->param.rc.i_vbv_max_bitrate == X264_VBV_MAXRATE_HIGH10 ? 12 :
+                             h->param.rc.i_vbv_max_bitrate == X264_VBV_MAXRATE_HIGH ? 5 : 4;
+            h->param.rc.i_vbv_max_bitrate = (l->bitrate * cbp_factor) / 4;
+            x264_log( h, X264_LOG_INFO, "VBV maxrate is automatically set to %d.\n", h->param.rc.i_vbv_max_bitrate );
+        }
+        if( h->param.rc.i_vbv_buffer_size < 0 )
+        {
+            int cbp_factor = h->param.rc.i_vbv_buffer_size == X264_VBV_BUFSIZE_HIGH444 ? 16 :
+                             h->param.rc.i_vbv_buffer_size == X264_VBV_BUFSIZE_HIGH422 ? 16 :
+                             h->param.rc.i_vbv_buffer_size == X264_VBV_BUFSIZE_HIGH10 ? 12 :
+                             h->param.rc.i_vbv_buffer_size == X264_VBV_BUFSIZE_HIGH ? 5 : 4;
+            h->param.rc.i_vbv_buffer_size = (l->cpb * cbp_factor) / 4;
+            x264_log( h, X264_LOG_INFO, "VBV bufsize is automatically set to %d.\n", h->param.rc.i_vbv_buffer_size );
+        }
+        if( h->param.analyse.i_mv_range <= 0 )
+            h->param.analyse.i_mv_range = l->mv_range >> PARAM_INTERLACED;
+        else
+            h->param.analyse.i_mv_range = x264_clip3(h->param.analyse.i_mv_range, 32, 512 >> PARAM_INTERLACED);
+    }
+
     if( h->param.rc.i_rc_method < 0 || h->param.rc.i_rc_method > 2 )
     {
         x264_log( h, X264_LOG_ERROR, "no ratecontrol method specified\n" );
@@ -963,7 +1011,6 @@ static int x264_validate_parameters( x264_t *h, int b_open )
             h->param.b_pic_struct = 1;
     }
 
-    h->param.i_frame_reference = x264_clip3( h->param.i_frame_reference, 1, X264_REF_MAX );
     h->param.i_dpb_size = x264_clip3( h->param.i_dpb_size, 1, X264_REF_MAX );
     if( h->param.i_scenecut_threshold < 0 )
         h->param.i_scenecut_threshold = 0;
@@ -1175,7 +1222,6 @@ static int x264_validate_parameters( x264_t *h, int b_open )
         else
             h->param.analyse.i_mv_range = x264_clip3(h->param.analyse.i_mv_range, 32, 512 >> PARAM_INTERLACED);
     }
-
     h->param.analyse.i_weighted_pred = x264_clip3( h->param.analyse.i_weighted_pred, X264_WEIGHTP_NONE, X264_WEIGHTP_SMART );
 
     if( h->param.i_lookahead_threads == X264_THREADS_AUTO )
