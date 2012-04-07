@@ -759,8 +759,18 @@ static void help( x264_param_t *defaults, int longhelp )
     H0( "  -B, --bitrate <integer>     Set bitrate (kbit/s)\n" );
     H0( "      --crf <float>           Quality-based VBR (%d-51) [%.1f]\n", 51 - QP_MAX_SPEC, defaults->rc.f_rf_constant );
     H1( "      --rc-lookahead <integer> Number of frames for frametype lookahead [%d]\n", defaults->rc.i_lookahead );
-    H0( "      --vbv-maxrate <integer> Max local bitrate (kbit/s) [%d]\n", defaults->rc.i_vbv_max_bitrate );
-    H0( "      --vbv-bufsize <integer> Set size of the VBV buffer (kbit) [%d]\n", defaults->rc.i_vbv_buffer_size );
+    H0( "      --vbv-maxrate <string> or <integer> Max local bitrate (kbit/s) [%d]\n"
+        "                                  - auto_high444: Set the VBV maxrate to fit in the target level of High 4:4:4 Predictive Profile\n"
+        "                                  - auto_high422: Set the VBV maxrate to fit in the target level of High 4:2:2 Profile\n"
+        "                                  - auto_high10: Set the VBV maxrate to fit in the target level of High 10 Profile\n"
+        "                                  - auto_high: Set the VBV maxrate to fit in the target level of High Profile\n"
+        "                                  - auto_main: Set the VBV maxrate to fit in the target level of Main and Baseline Profile\n", defaults->rc.i_vbv_max_bitrate );
+    H0( "      --vbv-bufsize <string> or <integer> Set size of the VBV buffer (kbit) [%d]\n"
+        "                                  - auto_high444: Set the VBV bufsize to fit in the target level of High 4:4:4 Predictive Profile\n"
+        "                                  - auto_high422: Set the VBV bufsize to fit in the target level of High 4:2:2 Profile\n"
+        "                                  - auto_high10: Set the VBV bufsize to fit in the target level of High 10 Profile\n"
+        "                                  - auto_high: Set the VBV bufsize to fit in the target level of High Profile\n"
+        "                                  - auto_main: Set the VBV bufsize to fit in the target level of Main and Baseline Profile\n", defaults->rc.i_vbv_buffer_size );
     H2( "      --vbv-init <float>      Initial VBV buffer occupancy [%.1f]\n", defaults->rc.f_vbv_buffer_init );
     H2( "      --crf-max <float>       With CRF+VBV, limit RF to this value\n"
         "                                  May cause VBV underflows!\n" );
