@@ -379,10 +379,10 @@ static int x264_init_sws_context( resizer_hnd_t *h )
     av_opt_set_int( h->ctx, "src_format", h->scale.pix_fmt, 0 );
     av_opt_set_int( h->ctx, "src_range",  h->scale.range,   0 );
 
-    /* FIXME: use the correct matrix coefficients (only YUV -> RGB conversions are supported) */
+    /* use the correct matrix coefficients (only YUV -> RGB conversions are supported) */
     sws_setColorspaceDetails( h->ctx,
-                              sws_getCoefficients( SWS_CS_DEFAULT ), h->scale.range,
-                              sws_getCoefficients( SWS_CS_DEFAULT ), h->dst.range,
+                              sws_getCoefficients( ( h->scale.width > 1024 || h->scale.height > 576 ) ? SWS_CS_ITU709 : SWS_CS_ITU601 ), h->scale.range,
+                              sws_getCoefficients( (  h->dst.width  > 1024 ||  h->dst.height  > 576 ) ? SWS_CS_ITU709 : SWS_CS_ITU601 ), h->dst.range,
                               0, 1<<16, 1<<16 );
 
     return sws_init_context( h->ctx, NULL, NULL ) < 0;
