@@ -145,6 +145,8 @@ static void avs_build_filter_sequence( char *filename_ext, const char *filter[AV
         filter[i++] = "MPEG2Source";
     if( !strcasecmp( filename_ext, "dga" ) )
         filter[i++] = "AVCSource";
+    if( !strcasecmp( filename_ext, "dgi" ) )
+        filter[i++] = "DGSource";
 #endif
     for( int j = 0; all_purpose[j] && i < AVS_MAX_SEQUENCE; j++ )
         filter[i++] = all_purpose[j];
