@@ -1470,7 +1470,7 @@ static int select_input( const char *demuxer, char *used_demuxer, char *filename
     }
     const char *module = b_auto ? ext : demuxer;
 
-    if( !strcasecmp( module, "avs" ) || !strcasecmp( ext, "d2v" ) || !strcasecmp( ext, "dga" ) )
+    if( !strcasecmp( module, "avs" ) || !strcasecmp( ext, "d2v" ) || !strcasecmp( ext, "dga" ) || !strcasecmp( ext, "dgi" ) )
     {
 #if HAVE_AVS
         cli_input = avs_input;
