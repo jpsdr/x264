@@ -426,6 +426,23 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
         opt->input_range = opt->output_range;
     }
 #endif
+    if( opt->bit_depth > 8 && opt->bit_depth != BIT_DEPTH && opt->bit_depth != 16 )
+    {
+        AVS_Value arg_arr[] = { res, avs_new_value_int( 0 ), avs_new_value_int( 0 ), avs_new_value_int( 0 ),
+                                     avs_new_value_int( 0 ), avs_new_value_int( 0 ),
+                                     avs_new_value_int( opt->bit_depth ), avs_new_value_int( 2 ),
+                                     avs_new_value_int( BIT_DEPTH ), avs_new_value_int( BIT_DEPTH > 8 ? 2 : 0 ) };
+        const char *arg_name[] = { NULL, "Y", "Cb", "Cr",
+                                          "grainY", "grainC",
+                                          "input_depth", "input_mode",
+                                          "output_depth", "output_mode" };
+        AVS_Value res2 = h->func.avs_invoke( h->env, "f3kdb", avs_new_value_array( arg_arr, 10 ), arg_name );
+        x264_cli_log( "avs", X264_LOG_WARNING, "performing bit depth conversion using f3kdb: %d->%d\n", opt->bit_depth, BIT_DEPTH );
+        FAIL_IF_ERROR( avs_is_error( res2 ), "couldn't convert bit depth: %s\n", avs_as_error( res2 ) )
+        res = update_clip( h, &vi, res2, res );
+        // notification that the input bit depth has changed to the desired one
+        opt->bit_depth = BIT_DEPTH;
+    }
 
     h->func.avs_release_value( res );
 
