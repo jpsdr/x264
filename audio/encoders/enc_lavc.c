@@ -199,6 +199,8 @@ if( h->info.chanlayout == 0 )
         av_dict_set( &avopts, "cutoff", acutoff, 0 );
 
     char *aprofile = x264_otos( x264_get_option( "profile", opts ), NULL );
+    if( !strcmp(codecname, "libaacplus") )
+        aprofile = "aac_he";
     if( aprofile )
     {
         av_dict_set( &avopts, "profile", aprofile, 0 );
