@@ -968,6 +968,7 @@ static void help( x264_param_t *defaults, int longhelp )
     H1( "      --log-level <string>    Specify the maximum level of logging [\"%s\"]\n"
         "                                  - %s\n", strtable_lookup( log_level_names, cli_log_level - X264_LOG_NONE ),
                                        stringify_names( buf, log_level_names ) );
+    H2( "      --stylish               r2204 style progress indicator\n");
     H1( "      --psnr                  Enable PSNR computation\n" );
     H1( "      --ssim                  Enable SSIM computation\n" );
     H1( "      --threads <integer>     Force a specific number of threads\n" );
@@ -1042,6 +1043,7 @@ typedef enum
     OPT_TIMEBASE,
     OPT_PULLDOWN,
     OPT_LOG_LEVEL,
+    OPT_STYLISH,
     OPT_VIDEO_FILTER,
     OPT_INPUT_FMT,
     OPT_INPUT_RES,
@@ -1191,6 +1193,7 @@ static struct option long_options[] =
     { "quiet",             no_argument, NULL, OPT_QUIET },
     { "verbose",           no_argument, NULL, 'v' },
     { "log-level",   required_argument, NULL, OPT_LOG_LEVEL },
+    { "stylish",           no_argument, NULL, OPT_STYLISH },
     { "no-progress",       no_argument, NULL, OPT_NOPROGRESS },
     { "dump-yuv",    required_argument, NULL, 0 },
     { "sps-id",      required_argument, NULL, 0 },
@@ -1633,6 +1636,9 @@ static int parse( int argc, char **argv, x264_param_t *param, cli_opt_t *opt )
                 else
                     cli_log_level = atoi( optarg );
                 param->i_log_level = cli_log_level;
+                break;
+            case OPT_STYLISH:
+                param->b_stylish = 1;
                 break;
             case OPT_NOPROGRESS:
                 opt->b_progress = 0;
@@ -2087,17 +2093,44 @@ static int64_t print_status( int64_t i_start, int64_t i_previous, int i_frame, i
         bitrate = (double) i_file * 8 / ( (double) last_ts * 1000 * param->i_timebase_num / param->i_timebase_den );
     else
         bitrate = (double) i_file * 8 / ( (double) 1000 * param->i_fps_den / param->i_fps_num );
+
+    int eta, eta_hh, eta_mm, eta_ss;
+    double percentage;
     if( i_frame_total )
     {
-        int eta = i_elapsed * (i_frame_total - i_frame) / ((int64_t)i_frame * 1000000);
+        eta        = i_elapsed * (i_frame_total - i_frame) / ((int64_t)i_frame * 1000000);
+        percentage = 100. * i_frame / i_frame_total;
+        eta_hh     = eta / 3600;
+        eta_mm     = ( eta / 60 ) % 60;
+        eta_ss     = eta % 60;
         sprintf( buf, "x264 [%.1f%%] %d/%d frames, %.2f fps, %.2f kb/s, eta %d:%02d:%02d",
-                 100. * i_frame / i_frame_total, i_frame, i_frame_total, fps, bitrate,
-                 eta/3600, (eta/60)%60, eta%60 );
+                 percentage, i_frame, i_frame_total, fps, bitrate,
+                 eta_hh, eta_mm, eta_ss );
     }
     else
         sprintf( buf, "x264 %d frames: %.2f fps, %.2f kb/s", i_frame, fps, bitrate );
-    fprintf( stderr, "%s  \r", buf+5 );
-    x264_cli_set_console_title( buf );
+
+    if( param->b_stylish )
+    {
+        char buf_stylish[200];
+        int secs = i_elapsed / 1000000;
+        if( i_frame_total )
+        {
+            sprintf( buf_stylish, "x264 [%5.1f%%]  %6d/%-6d  %6.2f  %9.2f  %3d:%02d:%02d  %3d:%02d:%02d",
+                     percentage, i_frame, i_frame_total, fps, bitrate,
+                     secs/3600, (secs/60)%60, secs%60, eta_hh, eta_mm, eta_ss );
+        }
+        else
+        {
+            sprintf( buf_stylish, "x264 %6d  %6.2f  %9.2f  %3d:%02d:%02d",
+                     i_frame, fps, bitrate, secs/3600, (secs/60)%60, secs%60 );
+        }
+        fprintf( stderr, "%s  \r", buf_stylish+5 );
+    }
+    else
+        fprintf( stderr, "%s  \r", buf+5 );
+
+    x264_cli_set_console_title( buf ); // always use old indicator for console title
     fflush( stderr ); // needed in windows
     return i_time;
 }
@@ -2186,6 +2219,14 @@ static int encode( x264_param_t *param, cli_opt_t *opt )
 
     if( opt->tcfile_out )
         fprintf( opt->tcfile_out, "# timecode format v2\n" );
+
+    if( opt->b_progress && param->b_stylish )
+    {
+        if( param->i_frame_total )
+            fprintf( stderr, " %6s   %13s  %6s  %9s  %9s  %9s\n", "", "frames   ", "fps ", "kb/s ", "elapsed", "remain " );
+        else
+            fprintf( stderr, "%6s  %6s  %9s  %9s\n", "frames", "fps ", "kb/s ", "elapsed" );
+    }
 
     /* Encode frames */
     for( ; !b_ctrl_c && (i_frame < param->i_frame_total || !param->i_frame_total); i_frame++ )
@@ -2281,9 +2322,19 @@ fail:
         duration = (double)(2 * largest_pts - second_largest_pts) * param->i_timebase_num / param->i_timebase_den;
 
     i_end = x264_mdate();
-    /* Erase progress indicator before printing encoding stats. */
     if( opt->b_progress )
-        fprintf( stderr, "                                                                               \r" );
+    {
+        if( !param->b_stylish )
+        {
+            /* Erase progress indicator before printing encoding stats. */
+            fprintf( stderr, "                                                                               \r" );
+        }
+        else if( i_frame_output )
+        {
+            print_status( i_start, 0, i_frame_output, param->i_frame_total, i_file, param, 2 * last_dts - prev_dts - first_dts );
+            fprintf( stderr, "\n" );
+        }
+    }
     if( h )
         x264_encoder_close( h );
     fprintf( stderr, "\n" );
