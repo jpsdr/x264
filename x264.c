@@ -2305,8 +2305,14 @@ static int64_t print_status( int64_t i_start, int64_t i_previous, int i_frame, i
     else
         bitrate = (double) i_file * 8 / ( (double) 1000 * param->i_fps_den / param->i_fps_num );
 
-    int eta, eta_hh, eta_mm, eta_ss;
-    double percentage;
+    int eta, eta_hh, eta_mm, eta_ss, fps_prec, bitrate_prec, file_prec, estsz_prec;
+    double percentage, estsz, file_num, estsz_num;
+    char *file_unit, *estsz_unit;
+    fps_prec     = fps > 999.5 ? 0 : fps > 99.5 ? 1 : fps > 9.95 ? 2 : 3;
+    bitrate_prec = bitrate > 9999.5 ? 0 : bitrate > 999.5 ? 1 : 2;
+    file_prec    = i_file < 1048576000 ? 2 : i_file < 10485760000 ? 1 : 0;
+    file_num     = i_file < 1048576 ? (double) i_file / 1024. : (double) i_file / 1048576.;
+    file_unit    = i_file < 1048576 ? "K":"M";
     if( i_frame_total )
     {
         eta        = i_elapsed * (i_frame_total - i_frame) / ((int64_t)i_frame * 1000000);
@@ -2314,12 +2320,20 @@ static int64_t print_status( int64_t i_start, int64_t i_previous, int i_frame, i
         eta_hh     = eta / 3600;
         eta_mm     = ( eta / 60 ) % 60;
         eta_ss     = eta % 60;
-        sprintf( buf, "x264 [%.1f%%] %d/%d frames, %.2f fps, %.2f kb/s, eta %d:%02d:%02d",
-                 percentage, i_frame, i_frame_total, fps, bitrate,
-                 eta_hh, eta_mm, eta_ss );
+        estsz      = (double) i_file * i_frame_total / (i_frame * 1024.);
+        estsz_prec = estsz < 1024000 ? 2 : estsz < 10240000 ? 1 : 0;
+        estsz_num  = estsz < 1024 ? estsz : estsz / 1024;
+        estsz_unit = estsz < 1024 ? "K" : "M";
+        sprintf( buf, "x264 [%.1f%%] %d/%d frames, %.*f fps, %.*f kb/s, %.*f %sB, eta %d:%02d:%02d, est.size %.*f %sB",
+                 percentage, i_frame, i_frame_total, fps_prec, fps, bitrate_prec, bitrate,
+                 file_prec, file_num, file_unit,
+                 eta_hh, eta_mm, eta_ss,
+                 estsz_prec, estsz_num, estsz_unit );
     }
     else
-        sprintf( buf, "x264 %d frames: %.2f fps, %.2f kb/s", i_frame, fps, bitrate );
+        sprintf( buf, "x264 %d frames: %.*f fps, %.*f kb/s, %.*f %sB",
+                 i_frame, fps_prec, fps, bitrate_prec, bitrate,
+                 file_prec, file_num, file_unit );
 
     if( param->b_stylish )
     {
@@ -2327,19 +2341,23 @@ static int64_t print_status( int64_t i_start, int64_t i_previous, int i_frame, i
         int secs = i_elapsed / 1000000;
         if( i_frame_total )
         {
-            sprintf( buf_stylish, "x264 [%5.1f%%]  %6d/%-6d  %6.2f  %9.2f  %3d:%02d:%02d  %3d:%02d:%02d",
-                     percentage, i_frame, i_frame_total, fps, bitrate,
-                     secs/3600, (secs/60)%60, secs%60, eta_hh, eta_mm, eta_ss );
+            sprintf( buf_stylish, "x264 [%5.1f%%]  %6d/%-6d  %5.*f  %6.*f  %3d:%02d:%02d  %3d:%02d:%02d  %6.*f %1sB  %6.*f %1sB",
+                     percentage, i_frame, i_frame_total, fps_prec, fps, bitrate_prec, bitrate,
+                     secs/3600, (secs/60)%60, secs%60, eta_hh, eta_mm, eta_ss,
+                     file_prec, file_num, file_unit,
+                     estsz_prec, estsz_num, estsz_unit );
         }
         else
         {
-            sprintf( buf_stylish, "x264 %6d  %6.2f  %9.2f  %3d:%02d:%02d",
-                     i_frame, fps, bitrate, secs/3600, (secs/60)%60, secs%60 );
+            sprintf( buf_stylish, "x264 %6d  %5.*f  %6.*f  %3d:%02d:%02d  %6.*f %1sB",
+                     i_frame, fps_prec, fps, bitrate_prec, bitrate,
+                     secs/3600, (secs/60)%60, secs%60,
+                     file_prec, file_num, file_unit );
         }
         fprintf( stderr, "%s  \r", buf_stylish+5 );
     }
     else
-        fprintf( stderr, "%s  \r", buf+5 );
+        fprintf( stderr, "%s       \r", buf+5 );
 
     x264_cli_set_console_title( buf ); // always use old indicator for console title
     fflush( stderr ); // needed in windows
@@ -2437,9 +2455,10 @@ static int encode( x264_param_t *param, cli_opt_t *opt )
     if( opt->b_progress && param->b_stylish )
     {
         if( param->i_frame_total )
-            fprintf( stderr, " %6s   %13s  %6s  %9s  %9s  %9s\n", "", "frames   ", "fps ", "kb/s ", "elapsed", "remain " );
+            fprintf( stderr, " %6s   %13s  %5s  %6s  %9s  %9s  %7s  %10s\n",
+                             "", "frames   ", "fps ", "kb/s ", "elapsed", "remain ", "size", "est.size" );
         else
-            fprintf( stderr, "%6s  %6s  %9s  %9s\n", "frames", "fps ", "kb/s ", "elapsed" );
+            fprintf( stderr, "%6s  %5s  %6s  %9s  %7s\n", "frames", "fps ", "kb/s ", "elapsed", "size" );
     }
 
     /* Encode frames */
@@ -2541,7 +2560,7 @@ fail:
         if( !param->b_stylish )
         {
             /* Erase progress indicator before printing encoding stats. */
-            fprintf( stderr, "                                                                               \r" );
+            fprintf( stderr, "                                                                                                                       \r" );
         }
         else if( i_frame_output )
         {
@@ -2564,8 +2583,12 @@ fail:
         double fps = (double)i_frame_output * (double)1000000 /
                      (double)( i_end - i_start );
 
-        x264_cli_printf( X264_LOG_INFO, "encoded %d frames, %.2f fps, %.2f kb/s\n", i_frame_output, fps,
-                         (double) i_file * 8 / ( 1000 * duration ) );
+        x264_cli_printf( X264_LOG_INFO, "encoded %d frames, %.*f fps, %.2f kb/s, %.*f %sB\n",
+                         i_frame_output, fps > 9.95 ? 2 : fps > 0.995 ? 3 : 4, fps,
+                         (double) i_file * 8 / ( 1000 * duration ),
+                         i_file < 1048576000 ? 2 : i_file < 10485760000 ? 1 : 0,
+                         i_file < 1048576 ? (double) i_file / 1024. : (double) i_file / 1048576.,
+                         i_file < 1048576 ? "K":"M" );
     }
 
     time_t tm2 = time(NULL);
