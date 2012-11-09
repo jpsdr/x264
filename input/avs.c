@@ -216,8 +216,13 @@ static void avs_build_filter_sequence( char *filename_ext, const char *filter[AV
     const char *all_purpose[] = { "FFVideoSource", 0 };
 #else
     const char *all_purpose[] = { "FFmpegSource2", "DSS2", "DirectShowSource", 0 };
-    if( !strcasecmp( filename_ext, "avi" ) )
+    if( !strcasecmp( filename_ext, "vpy" ) )
+        filter[i++] = "VSImport";
+    if( !strcasecmp( filename_ext, "avi" ) || !strcasecmp( filename_ext, "vpy" ) )
+    {
         filter[i++] = "AVISource";
+        filter[i++] = "HBVFWSource";
+    }
     if( !strcasecmp( filename_ext, "d2v" ) )
         filter[i++] = "MPEG2Source";
     if( !strcasecmp( filename_ext, "dga" ) )
@@ -337,6 +342,8 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
             x264_cli_printf( X264_LOG_INFO, "failed\n" );
         }
         FAIL_IF_ERROR( !filter[i], "unable to find source filter to open `%s'\n", psz_filename );
+        if( !strcasecmp( filter[i], "HBVFWSource" ) )
+            opt->bit_depth = 16;
     }
     FAIL_IF_ERROR( !avs_is_clip( res ), "`%s' didn't return a video clip\n", psz_filename );
     h->clip = h->func.avs_take_clip( res, h->env );
