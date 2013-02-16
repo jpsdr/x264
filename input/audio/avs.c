@@ -148,6 +148,60 @@ static AVS_Value check_ffms( hnd_t handle, const char *filename, int track )
     return res;
 }
 
+// LSMASHAudioSource(string source, int track)
+static AVS_Value check_lsmas( hnd_t handle, const char *filename, int track )
+{
+    avs_source_t *h = handle;
+    AVS_Value res;
+    x264_cli_log( "avs", X264_LOG_INFO, "trying LSMASHAudioSource for audio ..." );
+    if( !h->func.avs_function_exists( h->env, "LSMASHAudioSource" ) )
+    {
+        x264_cli_printf( X264_LOG_INFO, " not found\n" );
+        res = avs_new_value_error( "not found" );
+        return res;
+    }
+
+    AVS_Value arg_array = avs_new_value_array( (AVS_Value []){ avs_new_value_string( filename ),
+                                                 avs_new_value_int( track == TRACK_ANY ? 0 : track ) }, 2);
+    const char *arg_names[2] = { NULL, "track" };
+
+    res = h->func.avs_invoke( h->env, "LSMASHAudioSource", arg_array, arg_names );
+    if( avs_is_error( res ) )
+        x264_cli_printf( X264_LOG_INFO, " failed\n" );
+    else
+        x264_cli_printf( X264_LOG_INFO, " succeeded\n" );
+
+    h->func.avs_release_value( arg_array );
+    return res;
+}
+
+// LWLibavAudioSource(string source, int stream_index)
+static AVS_Value check_lwls( hnd_t handle, const char *filename, int track )
+{
+    avs_source_t *h = handle;
+    AVS_Value res;
+    x264_cli_log( "avs", X264_LOG_INFO, "trying LWLibavAudioSource for audio ..." );
+    if( !h->func.avs_function_exists( h->env, "LWLibavAudioSource" ) )
+    {
+        x264_cli_printf( X264_LOG_INFO, " not found\n" );
+        res = avs_new_value_error( "not found" );
+        return res;
+    }
+
+    AVS_Value arg_array = avs_new_value_array( (AVS_Value []){ avs_new_value_string( filename ),
+                                                 avs_new_value_int( track ) }, 2);
+    const char *arg_names[2] = { NULL, "stream_index" };
+
+    res = h->func.avs_invoke( h->env, "LWLibavAudioSource", arg_array, arg_names );
+    if( avs_is_error( res ) )
+        x264_cli_printf( X264_LOG_INFO, " failed\n" );
+    else
+        x264_cli_printf( X264_LOG_INFO, " succeeded\n" );
+
+    h->func.avs_release_value( arg_array );
+    return res;
+}
+
 //DirectShowSource (string filename, bool "audio", bool "video" )
 static AVS_Value check_directshowsource( hnd_t handle, const char *filename, int track )
 {
@@ -182,23 +236,39 @@ static void avs_audio_build_filter_sequence( const char *ext, int track,
     int i = 0;
     if( track != TRACK_ANY )
     {
-        // audio track selection doesn't work except for ffms
+        // audio track selection doesn't work except for lsmas, lwls or ffms
+        if( !strcmp( ext, "mp4" ) || !strcmp( ext, "mov" ) || !strcmp( ext, "qt" ) ||
+            !strcmp( ext, "3gp" ) || !strcmp( ext, "3g2" ) || !strcmp( ext, "m4a" ) )
+            filters[i++] = check_lsmas;
+        filters[i++] = check_lwls;
         filters[i++] = check_ffms;
+    }
+    else if( !strcmp( ext, "mp4" ) || !strcmp( ext, "mov" ) || !strcmp( ext, "qt" ) ||
+             !strcmp( ext, "3gp" ) || !strcmp( ext, "3g2" ) || !strcmp( ext, "m4a" ) )
+    {
+        // try AVISource first
+        filters[i++] = check_lsmas;
+        filters[i++] = check_lwls;
+        filters[i++] = check_ffms;
+        filters[i++] = check_directshowsource;
     }
     else if( !strcmp( ext, "avi" ) )
     {
         // try AVISource first
         filters[i++] = check_avisource;
+        filters[i++] = check_lwls;
         filters[i++] = check_ffms;
         filters[i++] = check_directshowsource;
     }
     else if( !strcmp( ext, "wma" ) || !strcmp( ext, "wmv" ) || !strcmp( ext, "asf" ) )
     {
         filters[i++] = check_directshowsource;
+        filters[i++] = check_lwls;
         filters[i++] = check_ffms;
     }
     else
     {
+        filters[i++] = check_lwls;
         filters[i++] = check_ffms;
         filters[i++] = check_directshowsource;
     }
