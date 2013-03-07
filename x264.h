@@ -265,6 +265,19 @@ static const char * const x264_nal_hrd_names[] = { "none", "vbr", "cbr", 0 };
 #define X264_NAL_HRD_VBR             1
 #define X264_NAL_HRD_CBR             2
 
+/* SEI level */
+#define X264_OPTS_NONE          0x0000
+#define X264_OPTS_INFO          0x0001
+#define X264_OPTS_SETTING       0x0002
+#define X264_OPTS_FULL          0x0003
+
+#define X264_OPTS_PREINFO       0x0010
+#define X264_OPTS_POSTINFO      0x0020
+#define X264_OPTS_PREOPT        0x0040
+#define X264_OPTS_POSTOPT       0x0080
+
+#define X264_OPTS_MAX                4
+
 /* Zones: override ratecontrol or other options for specific sections of the video.
  * See x264_encoder_reconfig() for which options can be changed.
  * If zones overlap, whichever comes later in the list takes precedence. */
@@ -475,6 +488,8 @@ typedef struct x264_param_t
     uint32_t i_fps_den;
     uint32_t i_timebase_num;    /* Timebase numerator */
     uint32_t i_timebase_den;    /* Timebase denominator */
+    int i_opts_write;
+    char *psz_opts[X264_OPTS_MAX];
 
     int b_tff;
 

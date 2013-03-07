@@ -570,26 +570,74 @@ int x264_sei_version_write( x264_t *h, bs_t *s )
     };
     char *opts = x264_param2string( &h->param, 0 );
     char *payload;
-    int length;
+    int offset = 16;
+    int length = 200;
+
+#define X264_FREE_OPTS                          \
+{                                               \
+    for( int i = 0; i < X264_OPTS_MAX; i++ )    \
+    {                                           \
+        if( h->param.psz_opts[i] )              \
+        {                                       \
+            free( h->param.psz_opts[i] );       \
+            h->param.psz_opts[i] = NULL;        \
+        }                                       \
+    }                                           \
+}
 
     if( !opts )
+    {
+        X264_FREE_OPTS
         return -1;
-    CHECKED_MALLOC( payload, 200 + strlen( opts ) );
+    }
+    if( h->param.i_opts_write & X264_OPTS_SETTING )
+        length += strlen( opts );
+    for( int i = 0; i < X264_OPTS_MAX; i++ )
+    {
+        if( h->param.psz_opts[i] )
+            length += strlen( h->param.psz_opts[i] );
+    }
+    CHECKED_MALLOC( payload, length );
 
     memcpy( payload, uuid, 16 );
-    sprintf( payload+16, "x264 - core %d%s - H.264/MPEG-4 AVC codec - "
-             "Copy%s 2003-2017 - http://www.videolan.org/x264.html - options: %s",
-             X264_BUILD, X264_VERSION, HAVE_GPL?"left":"right", opts );
-    length = strlen(payload)+1;
+    if( !h->param.i_opts_write )
+        *(payload + offset) = '\0';
+    else
+    {
+        if( h->param.i_opts_write & X264_OPTS_PREINFO )
+            offset += sprintf( payload + offset,
+                               ( h->param.i_opts_write & X264_OPTS_INFO ) ? "%s " : "%s",
+                               h->param.psz_opts[0] );
+        if( h->param.i_opts_write & X264_OPTS_INFO )
+            offset += sprintf( payload + offset, "x264 - core %d%s - H.264/MPEG-4 AVC codec - "
+                               "Copy%s 2003-2017 - http://www.videolan.org/x264.html",
+                               X264_BUILD, X264_VERSION, HAVE_GPL?"left":"right" );
+        if( h->param.i_opts_write & X264_OPTS_POSTINFO )
+            offset += sprintf( payload + offset, " %s", h->param.psz_opts[1] );
+        if( h->param.i_opts_write & ( X264_OPTS_PREOPT | X264_OPTS_SETTING | X264_OPTS_POSTOPT ) )
+        {
+            offset += sprintf( payload + offset, " - options:" );
+            if( h->param.i_opts_write & X264_OPTS_PREOPT )
+                offset += sprintf( payload + offset, " %s", h->param.psz_opts[2] );
+            if( h->param.i_opts_write & X264_OPTS_SETTING )
+                offset += sprintf( payload + offset, " %s", opts );
+            if( h->param.i_opts_write & X264_OPTS_POSTOPT )
+                offset += sprintf( payload + offset, " %s", h->param.psz_opts[3] );
+        }
+    }    length = strlen(payload)+1;
 
     x264_sei_write( s, (uint8_t *)payload, length, SEI_USER_DATA_UNREGISTERED );
 
+    X264_FREE_OPTS
     x264_free( opts );
     x264_free( payload );
     return 0;
 fail:
+    X264_FREE_OPTS
     x264_free( opts );
     return -1;
+
+#undef X264_FREE_OPTS
 }
 
 void x264_sei_buffering_period_write( x264_t *h, bs_t *s )
