@@ -179,6 +179,10 @@ void x264_param_default( x264_param_t *param )
     param->i_opencl_device = 0;
     param->opencl_device_id = NULL;
     param->psz_clbin_file = NULL;
+
+    param->i_opts_write = X264_OPTS_FULL;
+    for( int i = 0; i < X264_OPTS_MAX; i++ )
+        param->psz_opts[i] = NULL;
 }
 
 static int x264_param_apply_preset( x264_param_t *param, const char *preset )
@@ -1032,6 +1036,36 @@ int x264_param_parse( x264_param_t *p, const char *name, const char *value )
         p->b_aud = atobool(value);
     OPT("sps-id")
         p->i_sps_id = atoi(value);
+    OPT("opts")
+    {
+#define OPTS_SET( psz_x, prefix, flag )                     \
+        if( !strncasecmp( value, prefix, strlen(prefix) ) ) \
+        {                                                   \
+            if( p->i_opts_write & flag )                    \
+            {                                               \
+                free(psz_x);                                \
+                psz_x = NULL;                               \
+            }                                               \
+            psz_x = strdup( value + strlen(prefix) );       \
+            p->i_opts_write |= flag;                        \
+        }
+        OPTS_SET(      p->psz_opts[0], "preinfo:" , X264_OPTS_PREINFO  )
+        else OPTS_SET( p->psz_opts[0], "0:"       , X264_OPTS_PREINFO  )
+        else OPTS_SET( p->psz_opts[1], "postinfo:", X264_OPTS_POSTINFO )
+        else OPTS_SET( p->psz_opts[1], "1:"       , X264_OPTS_POSTINFO )
+        else OPTS_SET( p->psz_opts[2], "preopt:"  , X264_OPTS_PREOPT   )
+        else OPTS_SET( p->psz_opts[2], "2:"       , X264_OPTS_PREOPT   )
+        else OPTS_SET( p->psz_opts[3], "postopt:" , X264_OPTS_POSTOPT  )
+        else OPTS_SET( p->psz_opts[3], "3:"       , X264_OPTS_POSTOPT  )
+        else
+        {
+            int flag = strlen(value) == 1 && isdigit(value[0]) ? atoi(value) : atobool(value);
+            b_error |= flag < X264_OPTS_NONE || flag > X264_OPTS_FULL;
+            p->i_opts_write &= ~X264_OPTS_FULL;    // clear basic flag bit
+            p->i_opts_write |= flag;               // write basic flag bit
+        }
+#undef OPTS_SET
+    }
     OPT("global-header")
         p->b_repeat_headers = !atobool(value);
     OPT("repeat-headers")
