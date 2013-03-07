@@ -1003,6 +1003,11 @@ static void help( x264_param_t *defaults, int longhelp )
     H2( "      --timebase <int/int>    Specify timebase numerator and denominator\n"
         "                 <integer>    Specify timebase numerator for input timecode file\n"
         "                              or specify timebase denominator for other input\n" );
+    H2( "      --opts <integer>        Set level of writing options in SEI [%d]\n"
+        "                                  - 0: no information will be written in SEI\n"
+        "                                  - 1: write x264 information\n"
+        "                                  - 2: write x264 options\n"
+        "                                  - 3: write x264 information and options\n", defaults->i_opts_write );
     H2( "Muxer specific:\n" );
     H2( " [mp4/3gp/3g2/mov/flv]\n" );
     H2( "      --dts-compress          Eliminate initial delay with container DTS hack\n" );
@@ -1210,6 +1215,8 @@ static struct option long_options[] =
     { "dump-yuv",    required_argument, NULL, 0 },
     { "sps-id",      required_argument, NULL, 0 },
     { "aud",               no_argument, NULL, 0 },
+    { "opts",        required_argument, NULL, 0 },
+    { "no-opts",           no_argument, NULL, 0 },
     { "nr",          required_argument, NULL, 0 },
     { "cqm",         required_argument, NULL, 0 },
     { "cqmfile",     required_argument, NULL, 0 },
