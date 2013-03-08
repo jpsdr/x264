@@ -269,6 +269,7 @@ void x264_log( x264_t *h, int i_level, const char *psz_fmt, ... );
 
 void x264_reduce_fraction( uint32_t *n, uint32_t *d );
 void x264_reduce_fraction64( uint64_t *n, uint64_t *d );
+void x264_ntsc_fps( uint32_t *fps_num, uint32_t *fps_den );
 void x264_cavlc_init( x264_t *h );
 void x264_cabac_init( x264_t *h );
 
