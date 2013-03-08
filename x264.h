@@ -542,6 +542,7 @@ typedef struct x264_param_t
     int b_pulldown;             /* use explicity set timebase for CFR */
     uint32_t i_fps_num;
     uint32_t i_fps_den;
+    int b_accurate_fps;
     uint32_t i_timebase_num;    /* Timebase numerator */
     uint32_t i_timebase_den;    /* Timebase denominator */
     int i_opts_write;

@@ -500,6 +500,8 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
         FAIL_IF_ERROR( 1, "not supported pixel type: %s\n", pixel_type_name );
     }
     info->vfr = 0;
+    if( !opt->b_accurate_fps )
+        x264_ntsc_fps( &info->fps_num, &info->fps_den );
 
     if( opt->bit_depth > 8 )
     {

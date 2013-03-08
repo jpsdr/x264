@@ -1585,6 +1585,34 @@ REDUCE_FRACTION( x264_reduce_fraction  , uint32_t )
 REDUCE_FRACTION( x264_reduce_fraction64, uint64_t )
 
 /****************************************************************************
+ * x264_ntsc_fps:
+ ****************************************************************************/
+void x264_ntsc_fps( uint32_t *fps_num, uint32_t *fps_den )
+{
+    if( !*fps_num || !*fps_den )
+        return;
+
+#define X264_NTSC_TIMEBASE 1001
+    const double f_ntsc_mod6_quotient = (double) X264_NTSC_TIMEBASE / 6.;
+    const double f_fps                = (double) *fps_num / (double) *fps_den;
+    const double f_interval           = 1000. / f_fps;
+
+    const uint32_t i_nearest_ntsc_mod6_num = (uint32_t) ( f_ntsc_mod6_quotient / f_interval + 0.5 );
+    if( !i_nearest_ntsc_mod6_num )
+        return;
+    const double   f_nearest_ntsc_interval = f_ntsc_mod6_quotient / (double) i_nearest_ntsc_mod6_num;
+
+    if ( fabs ( f_interval - f_nearest_ntsc_interval ) < ( 1. / ( f_fps + 1. ) ) )    // error < ( 1 / fps + 1 )
+    {
+        *fps_num = i_nearest_ntsc_mod6_num * 6000;
+        *fps_den = X264_NTSC_TIMEBASE;
+    }
+#undef X264_NTSC_TIMEBASE
+
+    return;
+}
+
+/****************************************************************************
  * x264_slurp_file:
  ****************************************************************************/
 char *x264_slurp_file( const char *filename )

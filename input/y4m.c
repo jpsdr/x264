@@ -146,6 +146,8 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
             case 'F': /* Frame rate - 0:0 if unknown */
                 if( sscanf( tokstart, "%u:%u", &n, &d ) == 2 && n && d )
                 {
+                    if( !opt->b_accurate_fps )
+                        x264_ntsc_fps( &n, &d );
                     x264_reduce_fraction( &n, &d );
                     info->fps_num = n;
                     info->fps_den = d;
