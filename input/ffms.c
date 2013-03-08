@@ -155,6 +155,9 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
     /* ffms is thread unsafe as it uses a single frame buffer for all frame requests */
     info->thread_safe  = 0;
 
+    if( !opt->b_accurate_fps )
+        x264_ntsc_fps( &info->fps_num, &info->fps_den );
+
     const FFMS_Frame *frame = FFMS_GetFrame( h->video_source, 0, &e );
     FAIL_IF_ERROR( !frame, "could not read frame 0\n" )
 
