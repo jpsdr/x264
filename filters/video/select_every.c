@@ -104,6 +104,8 @@ static int init( hnd_t *handle, cli_vid_filter_t *filter, video_info_t *info, x2
         info->num_frames = (uint64_t)info->num_frames * h->pattern_len / h->step_size;
         info->fps_den *= h->step_size;
         info->fps_num *= h->pattern_len;
+        if( !param->b_accurate_fps )
+            x264_ntsc_fps( &info->fps_num, &info->fps_den );
         x264_reduce_fraction( &info->fps_num, &info->fps_den );
         if( info->vfr )
         {
