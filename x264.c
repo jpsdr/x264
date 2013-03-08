@@ -1151,6 +1151,7 @@ static void help( x264_param_t *defaults, int longhelp )
     H2( "      --sps-id <integer>      Set SPS and PPS id numbers [%d]\n", defaults->i_sps_id );
     H2( "      --aud                   Use access unit delimiters\n" );
     H2( "      --force-cfr             Force constant framerate timestamp generation\n" );
+    H2( "      --no-fps-correction     Disable automatic NTSC fps correction\n" );
     H2( "      --tcfile-in <string>    Force timestamp generation with timecode file\n" );
     H2( "      --tcfile-out <string>   Output timecode v2 file from input timestamps\n" );
     H2( "      --timebase <int/int>    Specify timebase numerator and denominator\n"
@@ -1207,6 +1208,7 @@ typedef enum
     OPT_DEMUXER,
     OPT_INDEX,
     OPT_INTERLACED,
+    OPT_NO_FPS_CORRECTION,
     OPT_TCFILE_IN,
     OPT_TCFILE_OUT,
     OPT_TIMEBASE,
@@ -1405,6 +1407,7 @@ static struct option long_options[] =
     { "colormatrix", required_argument, NULL, OPT_COLORMATRIX },
     { "chromaloc",   required_argument, NULL, 0 },
     { "force-cfr",         no_argument, NULL, 0 },
+    { "no-fps-correction", no_argument, NULL, OPT_NO_FPS_CORRECTION },
     { "tcfile-in",   required_argument, NULL, OPT_TCFILE_IN },
     { "tcfile-out",  required_argument, NULL, OPT_TCFILE_OUT },
     { "timebase",    required_argument, NULL, OPT_TIMEBASE },
@@ -1757,6 +1760,7 @@ static int parse( int argc, char **argv, x264_param_t *param, cli_opt_t *opt )
     memset( &output_opt, 0, sizeof(cli_output_opt_t) );
     input_opt.bit_depth = 8;
     input_opt.input_range = input_opt.output_range = param->vui.b_fullrange = RANGE_AUTO;
+    input_opt.b_accurate_fps = param->b_accurate_fps = 0;
     int output_csp = defaults.i_csp;
     opt->b_progress = 1;
 
@@ -1891,6 +1895,10 @@ static int parse( int argc, char **argv, x264_param_t *param, cli_opt_t *opt )
             case OPT_INTERLACED:
                 b_user_interlaced = 1;
                 goto generic_option;
+            case OPT_NO_FPS_CORRECTION:
+                param->b_accurate_fps    =
+                input_opt.b_accurate_fps = 1;
+                break;
             case OPT_TCFILE_IN:
                 tcfile_name = optarg;
                 break;
@@ -2114,6 +2122,8 @@ generic_option:
         shown_colormatrix = info.colormatrix;
 
     x264_reduce_fraction( &info.sar_width, &info.sar_height );
+    if( !param->b_accurate_fps )
+        x264_ntsc_fps( &info.fps_num, &info.fps_den );
     x264_reduce_fraction( &info.fps_num, &info.fps_den );
     x264_cli_log( demuxername, X264_LOG_INFO, "%dx%d%c %u:%u @ %u/%u fps (%cfr)\n", info.width,
                   info.height, info.interlaced ? 'i' : 'p', info.sar_width, info.sar_height,
