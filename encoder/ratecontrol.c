@@ -165,6 +165,9 @@ struct x264_ratecontrol_t
     int bframes;                /* # consecutive B-frames before this P-frame */
     int bframe_bits;            /* total cost of those frames */
 
+    /* OreAQ stuff */
+    float aq3_threshold;
+
     int i_zones;
     x264_zone_t *zones;
     x264_zone_t *prev_zone;
@@ -256,7 +259,7 @@ static ALWAYS_INLINE uint32_t ac_energy_plane( x264_t *h, int mb_x, int mb_y, x2
 }
 
 // Find the total AC energy of the block in all planes.
-static NOINLINE uint32_t x264_ac_energy_mb( x264_t *h, int mb_x, int mb_y, x264_frame_t *frame )
+static NOINLINE uint32_t x264_ac_energy_mb( x264_t *h, int mb_x, int mb_y, x264_frame_t *frame, uint32_t *energy )
 {
     /* This function contains annoying hacks because GCC has a habit of reordering emms
      * and putting it after floating point ops.  As a result, we put the emms at the end of the
@@ -268,40 +271,231 @@ static NOINLINE uint32_t x264_ac_energy_mb( x264_t *h, int mb_x, int mb_y, x264_
     {
         /* We don't know the super-MB mode we're going to pick yet, so
          * simply try both and pick the lower of the two. */
-        uint32_t var_interlaced, var_progressive;
-        var_interlaced   = ac_energy_plane( h, mb_x, mb_y, frame, 0, 0, 1, 1 );
-        var_progressive  = ac_energy_plane( h, mb_x, mb_y, frame, 0, 0, 0, 0 );
+        uint32_t var_interlaced_y  = ac_energy_plane( h, mb_x, mb_y, frame, 0, 0, 1, 1 );
+        uint32_t var_progressive_y = ac_energy_plane( h, mb_x, mb_y, frame, 0, 0, 0, 0 );
+        uint32_t var_interlaced_uv;
+        uint32_t var_progressive_uv;
         if( CHROMA444 )
         {
-            var_interlaced  += ac_energy_plane( h, mb_x, mb_y, frame, 1, 0, 1, 1 );
-            var_progressive += ac_energy_plane( h, mb_x, mb_y, frame, 1, 0, 0, 0 );
-            var_interlaced  += ac_energy_plane( h, mb_x, mb_y, frame, 2, 0, 1, 1 );
-            var_progressive += ac_energy_plane( h, mb_x, mb_y, frame, 2, 0, 0, 0 );
+            var_interlaced_uv   = ac_energy_plane( h, mb_x, mb_y, frame, 1, 0, 1, 1 );
+            var_progressive_uv  = ac_energy_plane( h, mb_x, mb_y, frame, 1, 0, 0, 0 );
+            var_interlaced_uv  += ac_energy_plane( h, mb_x, mb_y, frame, 2, 0, 1, 1 );
+            var_progressive_uv += ac_energy_plane( h, mb_x, mb_y, frame, 2, 0, 0, 0 );
         }
         else
         {
-            var_interlaced  += ac_energy_plane( h, mb_x, mb_y, frame, 1, 1, 1, 1 );
-            var_progressive += ac_energy_plane( h, mb_x, mb_y, frame, 1, 1, 0, 0 );
+            var_interlaced_uv   = ac_energy_plane( h, mb_x, mb_y, frame, 1, 1, 1, 1 );
+            var_progressive_uv  = ac_energy_plane( h, mb_x, mb_y, frame, 1, 1, 0, 0 );
         }
-        var = X264_MIN( var_interlaced, var_progressive );
+        uint32_t var_interlaced  = var_interlaced_y  + var_interlaced_uv;
+        uint32_t var_progressive = var_progressive_y + var_progressive_uv;
+        if( var_interlaced < var_progressive )
+        {
+            var = var_interlaced;
+            energy[0] = var_interlaced_y;
+            energy[1] = var_interlaced_uv;
+        }
+        else
+        {
+            var = var_progressive;
+            energy[0] = var_progressive_y;
+            energy[1] = var_progressive_uv;
+        }
     }
     else
     {
-        var  = ac_energy_plane( h, mb_x, mb_y, frame, 0, 0, PARAM_INTERLACED, 1 );
+
+        energy[0] = ac_energy_plane( h, mb_x, mb_y, frame, 0, 0, PARAM_INTERLACED, 1 );
         if( CHROMA444 )
         {
-            var += ac_energy_plane( h, mb_x, mb_y, frame, 1, 0, PARAM_INTERLACED, 1 );
-            var += ac_energy_plane( h, mb_x, mb_y, frame, 2, 0, PARAM_INTERLACED, 1 );
+            energy[1]  = ac_energy_plane( h, mb_x, mb_y, frame, 1, 0, PARAM_INTERLACED, 1 );
+            energy[1] += ac_energy_plane( h, mb_x, mb_y, frame, 2, 0, PARAM_INTERLACED, 1 );
         }
         else
-            var += ac_energy_plane( h, mb_x, mb_y, frame, 1, 1, PARAM_INTERLACED, 1 );
+            energy[1]  = ac_energy_plane( h, mb_x, mb_y, frame, 1, 1, PARAM_INTERLACED, 1 );
+        var = energy[0] + energy[1];
     }
     x264_emms();
     return var;
 }
 
+static int x264_sum_dctq( dctcoef dct[64] )
+{
+    int t = 0;
+    dctcoef *p = &dct[0];
+    for( int i = 1; i < 64; i++ )
+        t += abs(p[i]) * x264_dct8_weight_tab[i];
+    return t;
+}
+
+static NOINLINE void get_image_mb( x264_t *h, int mb_x, int mb_y, x264_frame_t *frame, int b_field, int *luma, int *bluePoint )
+{
+#define BLUE_THRESHOLD (0x81<<(BIT_DEPTH-8))
+#define RED_THRESHOLD  (0x87<<(BIT_DEPTH-8))
+    ALIGNED_16( static pixel zero[17] ) = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1};
+    if( CHROMA444 )
+    {
+        int stride[3];
+        int offset[3];
+        for( int i = 0; i < 3; i++ )
+        {
+            stride[i] = frame->i_stride[i];
+            offset[i] = b_field
+                ? 16 * (mb_x + (mb_y&~1) * stride[i]) + (mb_y&1) * stride[i]
+                : 16 * (mb_x +  mb_y * stride[i]);
+            stride[i] <<= b_field;
+        }
+        *luma = h->pixf.sad[PIXEL_16x16]( frame->plane[0] + offset[0], stride[0], zero, 0 ) >> 8;
+        *bluePoint =
+            (h->pixf.pixel_count[PIXEL_16x16]( frame->plane[1] + offset[1], stride[1], BLUE_THRESHOLD ) >= 160) &&
+            (h->pixf.pixel_count[PIXEL_16x16]( frame->plane[2] + offset[2], stride[2], RED_THRESHOLD  ) <= 96);
+    }
+    else
+    {
+        int height[2];
+        int stride[2];
+        int offset[2];
+        for( int i = 0; i < 2; i++ )
+        {
+            height[i] = i ? 16>>CHROMA_V_SHIFT : 16;
+            stride[i] = frame->i_stride[i];
+            offset[i] = b_field
+                ? 16 * mb_x + height[i] *(mb_y&~1) * stride[i] + (mb_y&1) * stride[i]
+                : 16 * mb_x + height[i] * mb_y * stride[i];
+            stride[i] <<= b_field;
+        }
+        *luma = h->pixf.sad[PIXEL_16x16]( frame->plane[0] + offset[0], stride[0], zero, 0 ) >> 8;
+        ALIGNED_ARRAY_16( pixel, pix,[FENC_STRIDE*16] );
+        int chromapix = h->luma2chroma_pixel[PIXEL_16x16];
+        int weight = 1 + (chromapix == PIXEL_8x16);
+        h->mc.load_deinterleave_chroma_fenc( pix, frame->plane[1] + offset[1], stride[1], height[1] );
+        *bluePoint =
+            (h->pixf.pixel_count[chromapix]( pix,               FENC_STRIDE, BLUE_THRESHOLD ) >= 40 * weight) &&
+            (h->pixf.pixel_count[chromapix]( pix+FENC_STRIDE/2, FENC_STRIDE, RED_THRESHOLD  ) <= 24 * weight);
+    }
+#undef BLUE_THRESHOLD
+#undef RED_THRESHOLD
+}
+
+static NOINLINE float x264_adjust_OreAQ( x264_t *h, int mb_x, int mb_y, x264_frame_t *frame, uint32_t *energy )
+{
+    uint8_t mode;
+    int bluePoint = 0;
+    int luma = 0;
+    float energy_y, energy_uv, f_qp_adj;
+    uint32_t _energy_y, _energy_uv;
+
+    get_image_mb( h, mb_x, mb_y, frame, PARAM_INTERLACED, &luma, &bluePoint );
+    x264_emms();
+
+    _energy_y  = X264_MAX( energy[0], 1 );
+    _energy_uv = X264_MAX( energy[1], 1 );
+
+    h->rc->aq3_threshold = logf( powf( h->param.rc.f_aq3_sensitivity, 4 ) / 2.0 );
+    // logf(energy) = 1.0397 * x264_log2( energy ) / 1.5
+    // energy_y  = 1.2 * (logf(_energy_y ) - ((h->rc->aq3_threshold + 2*(BIT_DEPTH-8)) * .91) + 0.5);
+    // energy_uv = 0.8 * (logf(_energy_uv) - ((h->rc->aq3_threshold + 2*(BIT_DEPTH-8)) * .91) + 0.5);
+    energy_y  = 0.83176f * x264_log2( _energy_y  ) - ((h->rc->aq3_threshold + 2*(BIT_DEPTH-8)) * 1.092f) + 0.5f;
+    energy_uv = 0.55451f * x264_log2( _energy_uv ) - ((h->rc->aq3_threshold + 2*(BIT_DEPTH-8)) * 0.728f) + 0.5f;
+    f_qp_adj = 0.f;
+
+    if( luma > h->param.rc.i_aq3_boundary[0] )
+    {
+        // *** Bright ***
+        // Y & UV Flat      -> qp up
+        // Y Flat / UV Bump -> qp y up
+        // Y Bump / UV Flat -> even
+        // Y & UV Bump      -> qp down
+        mode = 0x00;
+
+        // qp up
+        if( !bluePoint && energy_y < 0 && energy_uv < 0 )
+            f_qp_adj = X264_MIN( energy_y, energy_uv );
+        // qp y up
+        else if( !bluePoint && energy_y < 0 && energy_uv >= 0 )
+            f_qp_adj = energy_y;
+        // qp down
+        else if( energy_y >= 0 && energy_uv >= 0 )
+            f_qp_adj = X264_MAX( energy_y, energy_uv ) * 0.5f;
+    }
+    else if( luma > h->param.rc.i_aq3_boundary[1] )
+    {
+        // *** Middle ***
+        // Y & UV Flat      -> qp up
+        // Y Flat / UV Bump -> even
+        // Y Bump / UV Flat -> qp mix down
+        // Y & UV Bump      -> qp down
+        mode = 0x01;
+
+        // qp up
+        if( !bluePoint && energy_y < 0 && energy_uv < 0 )
+            f_qp_adj = X264_MAX( energy_y, energy_uv );
+        // qp mix down
+        else if( energy_y >= 0 && energy_uv < 0 )
+            f_qp_adj = X264_MAX( energy_y + (!bluePoint * energy_uv), 0 ) * 0.5f;
+        // qp down
+        else if( energy_y >= 0 && energy_uv >= 0 )
+            f_qp_adj = X264_MAX( energy_y, bluePoint * energy_uv );
+    }
+    else if( luma > h->param.rc.i_aq3_boundary[2] )
+    {
+        // *** Dark ***
+        // Y & UV Flat      -> qp up
+        // Y Flat / UV Bump -> qp uv down
+        // Y Bump / UV Flat -> qp y down
+        // Y & UV Bump      -> qp down
+        mode = 0x02;
+
+        // qp up
+        if( energy_y < 0 && energy_uv < 0 )
+            f_qp_adj = X264_MAX( energy_y, energy_uv ) * 0.5f;
+        // qp uv down
+        else if( energy_y < 0 && energy_uv >= 0 )
+            f_qp_adj = energy_uv * 1.25f;
+        // qp y down
+        else if( energy_y >= 0 && energy_uv < 0 )
+            f_qp_adj = energy_y * 1.25f;
+        // qp down
+        else if( energy_y >= 0 && energy_uv >= 0 )
+            f_qp_adj = X264_MAX( energy_y, energy_uv ) * 1.25f;
+    }
+    else
+    {
+        // *** M.Dark ***
+        // Y & UV Flat      -> qp double up
+        // Y Flat / UV Bump -> qp y up
+        // Y Bump / UV Flat -> qp uv up
+        // Y & UV Bump      -> even
+        mode = 0x03;
+
+        // qp double up
+        if( energy_y < 0 && energy_uv < 0 )
+            f_qp_adj = energy_y + energy_uv;
+        // qp mix up
+        else if( energy_y < 0 && energy_uv >= 0 )
+            f_qp_adj = energy_y;
+        // qp uv down
+        else if( energy_y >= 0 && energy_uv < 0 )
+            f_qp_adj = energy_uv * 0.5f;
+    }
+
+    /* If f_qp_adj is positive, then lower the qp. */
+    f_qp_adj *= h->param.rc.f_aq3_strengths[f_qp_adj>0][mode];
+
+    if( h->param.rc.i_aq3_mode == X264_AQ_ORE )
+    {
+        /* If current MB is frame edge, lower the qp. */
+        if( mb_x == 0 || mb_y == 0 || mb_x == h->sps->i_mb_width - 1 || mb_y == h->sps->i_mb_height - 1  )
+            f_qp_adj += (float)( (energy_y<0) + (energy_uv<0) + 1 ) * ( h->param.rc.f_aq3_strengths[1][3] + 0.5f );
+    }
+
+    return -f_qp_adj;
+}
+
 void x264_adaptive_quant_frame( x264_t *h, x264_frame_t *frame, float *quant_offsets )
 {
+    uint32_t energy_yuv[2] = {0, 0};
+
     /* Initialize frame stats */
     for( int i = 0; i < 3; i++ )
     {
@@ -337,7 +531,7 @@ void x264_adaptive_quant_frame( x264_t *h, x264_frame_t *frame, float *quant_off
         {
             for( int mb_y = 0; mb_y < h->mb.i_mb_height; mb_y++ )
                 for( int mb_x = 0; mb_x < h->mb.i_mb_width; mb_x++ )
-                    x264_ac_energy_mb( h, mb_x, mb_y, frame );
+                    x264_ac_energy_mb( h, mb_x, mb_y, frame, energy_yuv );
         }
         else
             return;
@@ -350,6 +544,7 @@ void x264_adaptive_quant_frame( x264_t *h, x264_frame_t *frame, float *quant_off
         float strength;
         float avg_adj = 0.f;
         float bias_strength = 0.f;
+        float f_aq_sensitivity = 0.f;
 
         if( h->param.rc.i_aq_mode == X264_AQ_AUTOVARIANCE || h->param.rc.i_aq_mode == X264_AQ_AUTOVARIANCE_BIASED )
          {
@@ -358,7 +553,7 @@ void x264_adaptive_quant_frame( x264_t *h, x264_frame_t *frame, float *quant_off
             for( int mb_y = 0; mb_y < h->mb.i_mb_height; mb_y++ )
                 for( int mb_x = 0; mb_x < h->mb.i_mb_width; mb_x++ )
                 {
-                    uint32_t energy = x264_ac_energy_mb( h, mb_x, mb_y, frame );
+                    uint32_t energy = x264_ac_energy_mb( h, mb_x, mb_y, frame, energy_yuv );
                     float qp_adj = powf( energy * bit_depth_correction + 1, 0.125f );
                     frame->f_qp_offset[mb_x + mb_y*h->mb.i_mb_stride] = qp_adj;
                     avg_adj += qp_adj;
@@ -371,7 +566,10 @@ void x264_adaptive_quant_frame( x264_t *h, x264_frame_t *frame, float *quant_off
             bias_strength = h->param.rc.f_aq_strength;
         }
         else
+        {
             strength = h->param.rc.f_aq_strength * 1.0397f;
+            f_aq_sensitivity = h->param.rc.f_aq_sensitivity - 10.f + 14.427f + 2*(BIT_DEPTH-8);
+        }
 
         for( int mb_y = 0; mb_y < h->mb.i_mb_height; mb_y++ )
             for( int mb_x = 0; mb_x < h->mb.i_mb_width; mb_x++ )
@@ -390,8 +588,8 @@ void x264_adaptive_quant_frame( x264_t *h, x264_frame_t *frame, float *quant_off
                 }
                 else
                 {
-                    uint32_t energy = x264_ac_energy_mb( h, mb_x, mb_y, frame );
-                    qp_adj = strength * (x264_log2( X264_MAX(energy, 1) ) - (14.427f + 2*(BIT_DEPTH-8)));
+                    uint32_t energy = x264_ac_energy_mb( h, mb_x, mb_y, frame, energy_yuv );
+                    qp_adj = strength * (x264_log2( X264_MAX(energy, 1) ) - f_aq_sensitivity);
                 }
                 if( quant_offsets )
                     qp_adj += quant_offsets[mb_xy];
@@ -399,6 +597,64 @@ void x264_adaptive_quant_frame( x264_t *h, x264_frame_t *frame, float *quant_off
                 frame->f_qp_offset_aq[mb_xy] = qp_adj;
                 if( h->frames.b_have_lowres )
                     frame->i_inv_qscale_factor[mb_xy] = x264_exp2fix8(qp_adj);
+            }
+    }
+
+    // OreAQ stuffs
+    if( h->param.rc.i_aq3_mode != X264_AQ_NONE )
+    {
+        float strength = 0.f;
+        float avg_adj  = 0.f;
+
+        if( h->param.rc.i_aq3_mode == X264_AQ_MIXORE )
+        {
+            float bit_depth_correction = powf(1 << (BIT_DEPTH-8), 0.5f);
+            float avg_adj_pow2 = 0.f;
+            for( int mb_y = 0; mb_y < h->mb.i_mb_height; mb_y++ )
+                for( int mb_x = 0; mb_x < h->mb.i_mb_width; mb_x++ )
+                {
+                    uint32_t energy = x264_ac_energy_mb( h, mb_x, mb_y, frame, energy_yuv );
+                    float qp_adj = powf( energy + 1, 0.125f );
+                    avg_adj += qp_adj;
+                    avg_adj_pow2 += qp_adj * qp_adj;
+                    frame->f_qp_offset3[mb_x + mb_y*h->mb.i_mb_stride] = qp_adj;
+                    frame->f_qp_offset_aq3[mb_x + mb_y*h->mb.i_mb_stride] = x264_adjust_OreAQ( h, mb_x, mb_y, frame, energy_yuv );
+                }
+            avg_adj /= h->mb.i_mb_count;
+            avg_adj_pow2 /= h->mb.i_mb_count;
+            strength = h->param.rc.f_aq3_strengths[1][3] * avg_adj / bit_depth_correction;
+            avg_adj = avg_adj - 0.5f * (avg_adj_pow2 - (14.f * bit_depth_correction)) / avg_adj;
+        }
+
+        for( int mb_y = 0; mb_y < h->mb.i_mb_height; mb_y++ )
+            for( int mb_x = 0; mb_x < h->mb.i_mb_width; mb_x++ )
+            {
+                float qp_adj;
+                int mb_xy = mb_x + mb_y*h->mb.i_mb_stride;
+                if( h->param.rc.i_aq3_mode == X264_AQ_MIXORE )
+                {
+                    if( frame->f_qp_offset_aq3[mb_xy] < -1 )
+                    {
+                        qp_adj = strength * (frame->f_qp_offset3[mb_xy] - avg_adj);
+                        qp_adj = X264_MIN( qp_adj, frame->f_qp_offset_aq3[mb_xy] );
+                    }
+                    else if( frame->f_qp_offset_aq3[mb_xy] >= 1 )
+                        qp_adj = frame->f_qp_offset_aq3[mb_xy];
+                    else
+                        qp_adj = strength * (frame->f_qp_offset3[mb_xy] - avg_adj);
+                }
+                else
+                {
+                    x264_ac_energy_mb( h, mb_x, mb_y, frame, energy_yuv );
+                    qp_adj = x264_adjust_OreAQ( h, mb_x, mb_y, frame, energy_yuv );
+                }
+                if( quant_offsets )
+                    qp_adj += quant_offsets[mb_xy];
+                frame->f_qp_offset3[mb_xy] =
+                frame->f_qp_offset_aq3[mb_xy] = qp_adj;
+                // FIXME: does OreAQ affects lowres factor?
+                // if( h->frames.b_have_lowres )
+                //    frame->i_inv_qscale_factor[mb_xy] = x264_exp2fix8(qp_adj);
             }
     }
 
@@ -1743,19 +1999,102 @@ int x264_ratecontrol_qp( x264_t *h )
     return x264_clip3( h->rc->qpm + 0.5f, h->param.rc.i_qp_min, h->param.rc.i_qp_max );
 }
 
+static NOINLINE float x264_haali_adaptive_quant( x264_t *h )
+{
+#define BLUE_THRESHOLD (0x81<<(BIT_DEPTH-8))
+#define RED_THRESHOLD  (0x87<<(BIT_DEPTH-8))
+    ALIGNED_16( static pixel zero[FDEC_STRIDE*8] );
+    ALIGNED_16( dctcoef dct[64] );
+    float qp_adj;
+    int total = 0;
+
+    if( h->mb.i_qp <= 10 ) /* AQ is probably not needed at such low QP */
+        return 0;
+
+    if( h->pixf.sad[PIXEL_16x16](h->mb.pic.p_fenc[0], FENC_STRIDE, zero, 16) > 64*16*16 ) /* light places? */
+    {
+        int (*count_func)( pixel *, intptr_t, pixel ) = CHROMA444 ? h->pixf.pixel_count[PIXEL_16x16] : h->pixf.pixel_count[PIXEL_8x8];
+        int weight = CHROMA444 ? 4 : 1;
+        if( count_func(h->mb.pic.p_fenc[1], FENC_STRIDE, BLUE_THRESHOLD) < 40 * weight /* not enough "blue" pixels? */ ||
+            count_func(h->mb.pic.p_fenc[2], FENC_STRIDE, RED_THRESHOLD)  > 24 * weight /* too many "red" pixels? */ )
+        {
+            x264_emms();
+            return 0;
+        }
+    }
+
+    for( int i = 0; i < 4; i++ )
+    {
+        h->dctf.sub8x8_dct8( dct, h->mb.pic.p_fenc[0] + (i&1)*8 + (i>>1)*FENC_STRIDE, zero );
+        total += x264_sum_dctq( dct );
+    }
+
+    x264_emms();
+
+    if( total == 0 ) /* no AC coefficients, nothing to do */
+        return 0;
+
+    /* the function is chosen such that it stays close to 0 in almost all
+     * range of 0..1, and rapidly goes up to 1 near 1.0 */
+    qp_adj = h->rc->qpm * h->param.rc.f_aq2_strength / pow( 2 - expf( -5e-13 * total * total ), h->param.rc.f_aq2_sensitivity );
+
+    /* don't adjust by more than this amount */
+    qp_adj = X264_MIN( qp_adj, h->rc->qpm / 2.f );
+
+    return -qp_adj;
+#undef BLUE_THRESHOLD
+#undef RED_THRESHOLD
+}
+
 int x264_ratecontrol_mb_qp( x264_t *h )
 {
     x264_emms();
     float qp = h->rc->qpm;
+
+    float qp_offset = 0;
     if( h->param.rc.i_aq_mode )
     {
-         /* MB-tree currently doesn't adjust quantizers in unreferenced frames. */
-        float qp_offset = h->fdec->b_kept_as_ref ? h->fenc->f_qp_offset[h->mb.i_mb_xy] : h->fenc->f_qp_offset_aq[h->mb.i_mb_xy];
-        /* Scale AQ's effect towards zero in emergency mode. */
-        if( qp > QP_MAX_SPEC )
-            qp_offset *= (QP_MAX - qp) / (QP_MAX - QP_MAX_SPEC);
-        qp += qp_offset;
+        /* MB-tree currently doesn't adjust quantizers in unreferenced frames. */
+        qp_offset = h->fdec->b_kept_as_ref ? h->fenc->f_qp_offset[h->mb.i_mb_xy] : h->fenc->f_qp_offset_aq[h->mb.i_mb_xy];
+
+        qp_offset *= h->sh.i_type == SLICE_TYPE_I ? h->param.rc.f_aq_ifactor
+                   : h->sh.i_type == SLICE_TYPE_P ? h->param.rc.f_aq_pfactor
+                   : h->sh.i_type == SLICE_TYPE_B ? h->param.rc.f_aq_bfactor
+                   : 1.f;
     }
+
+    if( h->param.rc.b_aq2 )
+    {
+        float haq_offset = x264_haali_adaptive_quant( h );
+        haq_offset *= h->sh.i_type == SLICE_TYPE_I ? h->param.rc.f_aq2_ifactor
+                    : h->sh.i_type == SLICE_TYPE_P ? h->param.rc.f_aq2_pfactor
+                    : h->sh.i_type == SLICE_TYPE_B ? h->param.rc.f_aq2_bfactor
+                    : 1.f;
+
+        if( qp_offset >= 0.f )
+            qp_offset += haq_offset;
+        else
+            qp_offset = X264_MIN( qp_offset, haq_offset );
+    }
+
+    if( h->param.rc.i_aq3_mode )
+    {
+        /* MB-tree currently doesn't adjust quantizers in unreferenced frames. */
+        float oaq_offset = h->fdec->b_kept_as_ref ? h->fenc->f_qp_offset3[h->mb.i_mb_xy] : h->fenc->f_qp_offset_aq3[h->mb.i_mb_xy];
+
+        oaq_offset *= h->sh.i_type == SLICE_TYPE_I ? h->param.rc.f_aq3_ifactor[oaq_offset<0]
+                    : h->sh.i_type == SLICE_TYPE_P ? h->param.rc.f_aq3_pfactor[oaq_offset<0]
+                    : h->sh.i_type == SLICE_TYPE_B ? h->param.rc.f_aq3_bfactor[oaq_offset<0]
+                    : 1.f;
+
+        qp_offset += oaq_offset;
+    }
+
+    /* Scale AQ's effect towards zero in emergency mode. */
+    if( qp > QP_MAX_SPEC )
+        qp_offset *= (QP_MAX - qp) / (QP_MAX - QP_MAX_SPEC);
+    qp += qp_offset;
+
     return x264_clip3( qp + 0.5f, h->param.rc.i_qp_min, h->param.rc.i_qp_max );
 }
 

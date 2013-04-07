@@ -914,6 +914,45 @@ static void help( x264_param_t *defaults, int longhelp )
         "                                  - 3: Auto-variance AQ with bias to dark scenes\n", defaults->rc.i_aq_mode );
     H1( "      --aq-strength <float>   Reduces blocking and blurring in flat and\n"
         "                              textured areas. [%.1f]\n", defaults->rc.f_aq_strength );
+    H1( "      --aq-sensitivity <float> \"Center\" of AQ curve. [%.1f]\n"
+        "                                  -  5: most QPs are raised\n"
+        "                                  - 10: good general-use sensitivity\n"
+        "                                  - 15: most QPs are lowered\n", defaults->rc.f_aq_sensitivity );
+    H2( "      --aq-ifactor <float>    AQ strength factor of I-frames [%.2f]\n", defaults->rc.f_aq_ifactor );
+    H2( "      --aq-pfactor <float>    AQ strength factor of P-frames [%.2f]\n", defaults->rc.f_aq_pfactor );
+    H2( "      --aq-bfactor <float>    AQ strength factor of B-frames [%.2f]\n", defaults->rc.f_aq_bfactor );
+    H1( "      --aq2-strength <float>   Use 2nd AQ (Haali's AQ) algorithm for support. [%.1f]\n"
+        "                                  0.0: no 2nd AQ\n"
+        "                                  1.1: strong 2nd AQ\n", defaults->rc.f_aq2_strength );
+    H1( "      --aq2-sensitivity <float> \"Flatness\" threshold to trigger 2nd AQ [%.1f]\n"
+        "                                    5: applies to almost all blocks\n"
+        "                                   22: only flat blocks\n", defaults->rc.f_aq2_sensitivity );
+    H2( "      --aq2-ifactor <float>   2nd AQ strength factor of I-frames [%.2f]\n", defaults->rc.f_aq2_ifactor );
+    H2( "      --aq2-pfactor <float>   2nd AQ strength factor of P-frames [%.2f]\n", defaults->rc.f_aq2_pfactor );
+    H2( "      --aq2-bfactor <float>   2nd AQ strength factor of B-frames [%.2f]\n", defaults->rc.f_aq2_bfactor );
+    H2( "      --aq3-mode <integer>    3rd AQ (OreAQ) method [%d]\n"
+        "                                  - 0: Disabled\n"
+        "                                  - 1: OreAQ\n"
+        "                                  - 2: MixOre (experimental)\n", defaults->rc.i_aq3_mode );
+    H1( "      --aq3-strength <float>  Reduces blocking and blurring in bump and\n"
+        "                              clear-cut areas. [%.1f]\n", defaults->rc.f_aq3_strength );
+    H2( "                    <Up:Down> or <Up1:Down1:Up2:Down2:Up3:Down3:Up4:OtherStuff>\n"
+        "                              Set QP up/down strength.\n" );
+    H1( "      --aq3-sensitivity <float> \"Center\" of 3rd AQ curve. [%.1f]\n"
+        "                                  -  5: most QPs are raised\n"
+        "                                  - 10: good general-use sensitivity\n"
+        "                                  - 15: most QPs are lowered\n", defaults->rc.f_aq3_sensitivity );
+    H2( "      --aq3-ifactor <Up:Down> 3rd AQ strength factor of I-frames [%.1f:%.1f]\n", defaults->rc.f_aq3_ifactor[0], defaults->rc.f_aq3_ifactor[1] );
+    H2( "      --aq3-pfactor <Up:Down> 3rd AQ strength factor of P-frames [%.1f:%.1f]\n", defaults->rc.f_aq3_pfactor[0], defaults->rc.f_aq3_pfactor[1] );
+    H2( "      --aq3-bfactor <Up:Down> 3rd AQ strength factor of B-frames [%.1f:%.1f]\n", defaults->rc.f_aq3_bfactor[0], defaults->rc.f_aq3_bfactor[1] );
+    H2( "      --aq3-boundary <int:int:int>  OreAQ boundary. \n"
+        "                                       fullrange=off: [%d:%d:%d]\n"
+        "                                       fullrange=on : [%d:%d:%d]\n"
+        "                                       #1: Bright-Middle\n"
+        "                                       #2: Middle-Dark\n"
+        "                                       #3: Dark-M.Dark\n",
+        192<<(BIT_DEPTH-8), 64<<(BIT_DEPTH-8), 24<<(BIT_DEPTH-8),
+        205<<(BIT_DEPTH-8), 56<<(BIT_DEPTH-8),  9<<(BIT_DEPTH-8) );
     H1( "      --fade-compensate <float> Allocate more bits to fades [%.1f]\n", defaults->rc.f_fade_compensate );
     H2( "                                  Approximate sane range: 0.0 - 1.0 (requires mb-tree)\n" );
     H1( "\n" );
@@ -1341,7 +1380,23 @@ static struct option long_options[] =
     { "no-fast-pskip",     no_argument, NULL, 0 },
     { "no-dct-decimate",   no_argument, NULL, 0 },
     { "aq-strength", required_argument, NULL, 0 },
+    { "aq-sensitivity", required_argument, NULL, 0 },
+    { "aq-ifactor",  required_argument, NULL, 0 },
+    { "aq-pfactor",  required_argument, NULL, 0 },
+    { "aq-bfactor",  required_argument, NULL, 0 },
     { "aq-mode",     required_argument, NULL, 0 },
+    { "aq2-strength", required_argument, NULL, 0 },
+    { "aq2-sensitivity", required_argument, NULL, 0 },
+    { "aq2-ifactor", required_argument, NULL, 0 },
+    { "aq2-pfactor", required_argument, NULL, 0 },
+    { "aq2-bfactor", required_argument, NULL, 0 },
+    { "aq3-strength", required_argument, NULL, 0 },
+    { "aq3-sensitivity", required_argument, NULL, 0 },
+    { "aq3-ifactor", required_argument, NULL, 0 },
+    { "aq3-pfactor", required_argument, NULL, 0 },
+    { "aq3-bfactor", required_argument, NULL, 0 },
+    { "aq3-mode",    required_argument, NULL, 0 },
+    { "aq3-boundary", required_argument, NULL, 0 },
     { "fgo",         required_argument, NULL, 0 },
     { "fade-compensate", required_argument, NULL, 0 },
     { "deadzone-inter", required_argument, NULL, 0 },

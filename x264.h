@@ -190,6 +190,8 @@ typedef struct x264_nal_t
 #define X264_AQ_VARIANCE             1
 #define X264_AQ_AUTOVARIANCE         2
 #define X264_AQ_AUTOVARIANCE_BIASED  3
+#define X264_AQ_ORE                  1
+#define X264_AQ_MIXORE               2
 #define X264_B_ADAPT_NONE            0
 #define X264_B_ADAPT_FAST            1
 #define X264_B_ADAPT_TRELLIS         2
@@ -499,6 +501,25 @@ typedef struct x264_param_t
 
         int         i_aq_mode;      /* psy adaptive QP. (X264_AQ_*) */
         float       f_aq_strength;
+        float       f_aq_sensitivity;
+        float       f_aq_ifactor;
+        float       f_aq_pfactor;
+        float       f_aq_bfactor;
+        int         b_aq2;          /* psy 2nd adaptive QP */
+        float       f_aq2_strength;
+        float       f_aq2_sensitivity;
+        float       f_aq2_ifactor;
+        float       f_aq2_pfactor;
+        float       f_aq2_bfactor;
+        int         i_aq3_mode;      /* psy 3rd adaptive QP */
+        float       f_aq3_strength;
+        float       f_aq3_strengths[2][4];   /* Up{ Bright, Middle, Dark, M.Dark }, Down{ Bright, Middle, Dark, Other stuff } */
+        float       f_aq3_sensitivity;
+        float       f_aq3_ifactor[2]; /* { Up, Down } */
+        float       f_aq3_pfactor[2]; /* { Up, Down } */
+        float       f_aq3_bfactor[2]; /* { Up, Down } */
+        int         b_aq3_boundary;
+        int         i_aq3_boundary[3];
         float       f_fade_compensate; /* Give more bits to fades. */
         int         b_mb_tree;      /* Macroblock-tree ratecontrol. */
         int         i_lookahead;

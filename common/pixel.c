@@ -77,6 +77,20 @@ PIXEL_SAD_C( x264_pixel_sad_4x16,   4, 16 )
 PIXEL_SAD_C( x264_pixel_sad_4x8,    4,  8 )
 PIXEL_SAD_C( x264_pixel_sad_4x4,    4,  4 )
 
+#define PIXEL_COUNT_C( name, lx, ly ) \
+static int name( pixel *pix, intptr_t i_pix, pixel threshold ) \
+{                                               \
+    int i_sum = 0;                              \
+    for( int y = 0; y < ly; y++, pix += i_pix ) \
+        for( int x = 0; x < lx; x++ )           \
+            i_sum += pix[x] > threshold;        \
+    return i_sum;                               \
+}
+
+PIXEL_COUNT_C( x264_pixel_count_16x16, 16, 16 )
+PIXEL_COUNT_C( x264_pixel_count_8x16,   8, 16 )
+PIXEL_COUNT_C( x264_pixel_count_8x8,    8,  8 )
+
 /****************************************************************************
  * pixel_ssd_WxH
  ****************************************************************************/
@@ -938,6 +952,9 @@ void x264_pixel_init( int cpu, x264_pixel_function_t *pixf )
     pixf->ssim_end4 = ssim_end4;
     pixf->vsad = pixel_vsad;
     pixf->asd8 = pixel_asd8;
+    pixf->pixel_count[PIXEL_16x16] = x264_pixel_count_16x16;
+    pixf->pixel_count[PIXEL_8x16] = x264_pixel_count_8x16;
+    pixf->pixel_count[PIXEL_8x8] = x264_pixel_count_8x8;
 
     pixf->intra_sad_x3_4x4    = x264_intra_sad_x3_4x4;
     pixf->intra_satd_x3_4x4   = x264_intra_satd_x3_4x4;
