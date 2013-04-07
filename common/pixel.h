@@ -118,6 +118,8 @@ typedef struct
     int (*ads[7])( int enc_dc[4], uint16_t *sums, int delta,
                    uint16_t *cost_mvx, int16_t *mvs, int width, int thresh );
 
+    int (*pixel_count[4])( pixel *pix, intptr_t i_pix, pixel threshold );
+
     /* calculate satd or sad of V, H, and DC modes. */
     void (*intra_mbcmp_x3_16x16)( pixel *fenc, pixel *fdec, int res[3] );
     void (*intra_satd_x3_16x16) ( pixel *fenc, pixel *fdec, int res[3] );
