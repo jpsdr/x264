@@ -107,8 +107,14 @@ void x264_param_default( x264_param_t *param )
     param->rc.f_vbv_buffer_init = 0.9;
     param->rc.i_qp_constant = 23 + QP_BD_OFFSET;
     param->rc.f_rf_constant = 23;
-    param->rc.i_qp_min = 0;
-    param->rc.i_qp_max = QP_MAX;
+    param->rc.i_qp_min_min           =
+    param->rc.i_qp_min[SLICE_TYPE_I] =
+    param->rc.i_qp_min[SLICE_TYPE_P] =
+    param->rc.i_qp_min[SLICE_TYPE_B] = 0;
+    param->rc.i_qp_max_max           =
+    param->rc.i_qp_max[SLICE_TYPE_I] =
+    param->rc.i_qp_max[SLICE_TYPE_P] =
+    param->rc.i_qp_max[SLICE_TYPE_B] = QP_MAX;
     param->rc.i_qp_step = 4;
     param->rc.f_ip_factor = 1.4;
     param->rc.f_pb_factor = 1.3;
@@ -1225,9 +1231,21 @@ int x264_param_parse( x264_param_t *p, const char *name, const char *value )
     OPT("rc-lookahead")
         p->rc.i_lookahead = atoi(value);
     OPT2("qpmin", "qp-min")
-        p->rc.i_qp_min = atoi(value);
+    {
+        if( 3 == sscanf( value, "%d:%d:%d", &p->rc.i_qp_min[SLICE_TYPE_I], &p->rc.i_qp_min[SLICE_TYPE_P], &p->rc.i_qp_min[SLICE_TYPE_B] ) ||
+            3 == sscanf( value, "%d,%d,%d", &p->rc.i_qp_min[SLICE_TYPE_I], &p->rc.i_qp_min[SLICE_TYPE_P], &p->rc.i_qp_min[SLICE_TYPE_B] ) )
+            p->rc.i_qp_min_min = X264_MIN3( p->rc.i_qp_min[SLICE_TYPE_I], p->rc.i_qp_min[SLICE_TYPE_P], p->rc.i_qp_min[SLICE_TYPE_B] );
+        else if( sscanf( value, "%d", &p->rc.i_qp_min_min ) )
+            p->rc.i_qp_min[SLICE_TYPE_I] = p->rc.i_qp_min[SLICE_TYPE_P] = p->rc.i_qp_min[SLICE_TYPE_B] = p->rc.i_qp_min_min;
+    }
     OPT2("qpmax", "qp-max")
-        p->rc.i_qp_max = atoi(value);
+    {
+        if( 3 == sscanf( value, "%d:%d:%d", &p->rc.i_qp_max[SLICE_TYPE_I], &p->rc.i_qp_max[SLICE_TYPE_P], &p->rc.i_qp_max[SLICE_TYPE_B] ) ||
+            3 == sscanf( value, "%d,%d,%d", &p->rc.i_qp_max[SLICE_TYPE_I], &p->rc.i_qp_max[SLICE_TYPE_P], &p->rc.i_qp_max[SLICE_TYPE_B] ) )
+            p->rc.i_qp_max_max = X264_MAX3( p->rc.i_qp_max[SLICE_TYPE_I], p->rc.i_qp_max[SLICE_TYPE_P], p->rc.i_qp_max[SLICE_TYPE_B] );
+        else if( sscanf( value, "%d", &p->rc.i_qp_max_max ) )
+            p->rc.i_qp_max[SLICE_TYPE_I] = p->rc.i_qp_max[SLICE_TYPE_P] = p->rc.i_qp_max[SLICE_TYPE_B] = p->rc.i_qp_max_max;
+    }
     OPT2("qpstep", "qp-step")
         p->rc.i_qp_step = atoi(value);
     OPT("ratetol")
@@ -1861,8 +1879,11 @@ char *x264_param2string( x264_param_t *p, int b_res )
         else
             s += sprintf( s, " bitrate=%d ratetol=%.1f",
                           p->rc.i_bitrate, p->rc.f_rate_tolerance );
-        s += sprintf( s, " qcomp=%.2f qpmin=%d qpmax=%d qpstep=%d",
-                      p->rc.f_qcompress, p->rc.i_qp_min, p->rc.i_qp_max, p->rc.i_qp_step );
+        s += sprintf( s, " qcomp=%.2f qpmin=%d:%d:%d qpmax=%d:%d:%d qpstep=%d",
+                      p->rc.f_qcompress,
+                      p->rc.i_qp_min[SLICE_TYPE_I], p->rc.i_qp_min[SLICE_TYPE_P], p->rc.i_qp_min[SLICE_TYPE_B],
+                      p->rc.i_qp_max[SLICE_TYPE_I], p->rc.i_qp_max[SLICE_TYPE_P], p->rc.i_qp_max[SLICE_TYPE_B],
+                      p->rc.i_qp_step );
         if( p->rc.b_stat_read )
             s += sprintf( s, " cplxblur=%.1f qblur=%.1f",
                           p->rc.f_complexity_blur, p->rc.f_qblur );

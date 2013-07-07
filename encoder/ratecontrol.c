@@ -1088,8 +1088,8 @@ int x264_ratecontrol_new( x264_t *h )
     for( int i = 0; i < 3; i++ )
     {
         rc->last_qscale_for[i] = qp2qscale( ABR_INIT_QP );
-        rc->lmin[i] = qp2qscale( h->param.rc.i_qp_min );
-        rc->lmax[i] = qp2qscale( h->param.rc.i_qp_max );
+        rc->lmin[i] = qp2qscale( h->param.rc.i_qp_min[i] );
+        rc->lmax[i] = qp2qscale( h->param.rc.i_qp_max[i] );
         for( int j = 0; j < num_preds; j++ )
         {
             rc->pred[i+j*5].coeff_min = pred_coeff_table[i] / 2;
@@ -1773,7 +1773,7 @@ void x264_ratecontrol_start( x264_t *h, int i_force_qp, int overhead )
     if( i_force_qp != X264_QP_AUTO )
         q = i_force_qp - 1;
 
-    q = x264_clip3f( q, h->param.rc.i_qp_min, h->param.rc.i_qp_max );
+    q = x264_clip3f( q, h->param.rc.i_qp_min[h->sh.i_type], h->param.rc.i_qp_max[h->sh.i_type] );
 
     rc->qpa_rc = rc->qpa_rc_prev =
     rc->qpa_aq = rc->qpa_aq_prev = 0;
@@ -1874,11 +1874,11 @@ int x264_ratecontrol_mb( x264_t *h, int bits )
 
     /* tweak quality based on difference from predicted size */
     float prev_row_qp = h->fdec->f_row_qp[y];
-    float qp_absolute_max = h->param.rc.i_qp_max;
+    float qp_absolute_max = h->param.rc.i_qp_max[h->sh.i_type];
     if( rc->rate_factor_max_increment )
         qp_absolute_max = X264_MIN( qp_absolute_max, rc->qp_novbv + rc->rate_factor_max_increment );
     float qp_max = X264_MIN( prev_row_qp + h->param.rc.i_qp_step, qp_absolute_max );
-    float qp_min = X264_MAX( prev_row_qp - h->param.rc.i_qp_step, h->param.rc.i_qp_min );
+    float qp_min = X264_MAX( prev_row_qp - h->param.rc.i_qp_step, h->param.rc.i_qp_min[h->sh.i_type] );
     float step_size = 0.5f;
     float slice_size_planned = h->param.b_sliced_threads ? rc->slice_size_planned : rc->frame_size_planned;
     float bits_so_far = row_bits_so_far( h, y );
@@ -1996,7 +1996,7 @@ int x264_ratecontrol_mb( x264_t *h, int bits )
 int x264_ratecontrol_qp( x264_t *h )
 {
     x264_emms();
-    return x264_clip3( h->rc->qpm + 0.5f, h->param.rc.i_qp_min, h->param.rc.i_qp_max );
+    return x264_clip3( h->rc->qpm + 0.5f, h->param.rc.i_qp_min[h->sh.i_type], h->param.rc.i_qp_max[h->sh.i_type] );
 }
 
 static NOINLINE float x264_haali_adaptive_quant( x264_t *h )
@@ -2095,7 +2095,7 @@ int x264_ratecontrol_mb_qp( x264_t *h )
         qp_offset *= (QP_MAX - qp) / (QP_MAX - QP_MAX_SPEC);
     qp += qp_offset;
 
-    return x264_clip3( qp + 0.5f, h->param.rc.i_qp_min, h->param.rc.i_qp_max );
+    return x264_clip3( qp + 0.5f, h->param.rc.i_qp_min[h->sh.i_type], h->param.rc.i_qp_max[h->sh.i_type] );
 }
 
 /* In 2pass, force the same frame types as in the 1st pass */
@@ -3193,8 +3193,8 @@ static int vbv_pass2( x264_t *h, double all_available_bits )
     double adjustment;
     double prev_bits = 0;
     int t0, t1;
-    double qscale_min = qp2qscale( h->param.rc.i_qp_min );
-    double qscale_max = qp2qscale( h->param.rc.i_qp_max );
+    double qscale_min = qp2qscale( h->param.rc.i_qp_min[h->sh.i_type] );
+    double qscale_max = qp2qscale( h->param.rc.i_qp_max[h->sh.i_type] );
     int iterations = 0;
     int adj_min, adj_max;
     CHECKED_MALLOC( fills, (rcc->num_entries+1)*sizeof(double) );
@@ -3425,17 +3425,17 @@ static int init_pass2( x264_t *h )
                   (float)h->param.rc.i_bitrate,
                   expected_bits * rcc->fps / (rcc->num_entries * 1000.),
                   avgq );
-        if( expected_bits < all_available_bits && avgq < h->param.rc.i_qp_min + 2 )
+        if( expected_bits < all_available_bits && avgq < h->param.rc.i_qp_min[h->sh.i_type] + 2 )
         {
-            if( h->param.rc.i_qp_min > 0 )
-                x264_log( h, X264_LOG_WARNING, "try reducing target bitrate or reducing qp_min (currently %d)\n", h->param.rc.i_qp_min );
+            if( h->param.rc.i_qp_min[h->sh.i_type] > 0 )
+                x264_log( h, X264_LOG_WARNING, "try reducing target bitrate or reducing qp_min (currently %d)\n", h->param.rc.i_qp_min[h->sh.i_type] );
             else
                 x264_log( h, X264_LOG_WARNING, "try reducing target bitrate\n" );
         }
-        else if( expected_bits > all_available_bits && avgq > h->param.rc.i_qp_max - 2 )
+        else if( expected_bits > all_available_bits && avgq > h->param.rc.i_qp_max[h->sh.i_type] - 2 )
         {
-            if( h->param.rc.i_qp_max < QP_MAX )
-                x264_log( h, X264_LOG_WARNING, "try increasing target bitrate or increasing qp_max (currently %d)\n", h->param.rc.i_qp_max );
+            if( h->param.rc.i_qp_max[h->sh.i_type] < QP_MAX )
+                x264_log( h, X264_LOG_WARNING, "try increasing target bitrate or increasing qp_max (currently %d)\n", h->param.rc.i_qp_max[h->sh.i_type] );
             else
                 x264_log( h, X264_LOG_WARNING, "try increasing target bitrate\n");
         }

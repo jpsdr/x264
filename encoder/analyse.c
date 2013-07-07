@@ -308,7 +308,7 @@ int x264_analyse_init_costs( x264_t *h )
     for( int i = 1; i <= 2*4*2048; i++ )
         logs[i] = log2f( i+1 ) * 2.0f + 1.718f;
 
-    for( int qp = X264_MIN( h->param.rc.i_qp_min, QP_MAX_SPEC ); qp <= h->param.rc.i_qp_max; qp++ )
+    for( int qp = X264_MIN( h->param.rc.i_qp_min_min, QP_MAX_SPEC ); qp <= h->param.rc.i_qp_max_max; qp++ )
         if( init_costs( h, logs, qp ) )
             goto fail;
 
@@ -2953,7 +2953,7 @@ static inline void x264_mb_analyse_qp_rd( x264_t *h, x264_mb_analysis_t *a )
         {
             if( !origcbp )
             {
-                h->mb.i_qp = X264_MAX( h->mb.i_qp - threshold - 1, SPEC_QP( h->param.rc.i_qp_min ) );
+                h->mb.i_qp = X264_MAX( h->mb.i_qp - threshold - 1, SPEC_QP( h->param.rc.i_qp_min[h->sh.i_type] ) );
                 h->mb.i_chroma_qp = h->chroma_qp_table[h->mb.i_qp];
                 already_checked_cost = x264_rd_cost_mb( h, a->i_lambda2 );
                 if( !h->mb.cbp[h->mb.i_mb_xy] )
@@ -2970,7 +2970,7 @@ static inline void x264_mb_analyse_qp_rd( x264_t *h, x264_mb_analysis_t *a )
         }
 
         h->mb.i_qp += direction;
-        while( h->mb.i_qp >= h->param.rc.i_qp_min && h->mb.i_qp <= SPEC_QP( h->param.rc.i_qp_max ) )
+        while( h->mb.i_qp >= h->param.rc.i_qp_min[h->sh.i_type] && h->mb.i_qp <= SPEC_QP( h->param.rc.i_qp_max[h->sh.i_type] ) )
         {
             if( h->mb.i_last_qp == h->mb.i_qp )
                 last_qp_tried = 1;
@@ -3071,7 +3071,7 @@ intra_analysis:
         {
             if( !h->param.analyse.b_psy )
             {
-                x264_mb_analyse_init_qp( h, &analysis, X264_MAX( h->mb.i_qp - h->mb.ip_offset, h->param.rc.i_qp_min ) );
+                x264_mb_analyse_init_qp( h, &analysis, X264_MAX( h->mb.i_qp - h->mb.ip_offset, h->param.rc.i_qp_min[h->sh.i_type] ) );
                 goto intra_analysis;
             }
         }
@@ -3350,7 +3350,7 @@ skip_analysis:
                     h->mc.copy[PIXEL_8x8]  ( h->mb.pic.p_fenc[1], FENC_STRIDE, h->mb.pic.p_fdec[1], FDEC_STRIDE, height );
                     h->mc.copy[PIXEL_8x8]  ( h->mb.pic.p_fenc[2], FENC_STRIDE, h->mb.pic.p_fdec[2], FDEC_STRIDE, height );
                 }
-                x264_mb_analyse_init_qp( h, &analysis, X264_MAX( h->mb.i_qp - h->mb.ip_offset, h->param.rc.i_qp_min ) );
+                x264_mb_analyse_init_qp( h, &analysis, X264_MAX( h->mb.i_qp - h->mb.ip_offset, h->param.rc.i_qp_min[h->sh.i_type] ) );
                 goto intra_analysis;
             }
 

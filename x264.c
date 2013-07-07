@@ -900,8 +900,12 @@ static void help( x264_param_t *defaults, int longhelp )
     H2( "      --vbv-init <float>      Initial VBV buffer occupancy [%.1f]\n", defaults->rc.f_vbv_buffer_init );
     H2( "      --crf-max <float>       With CRF+VBV, limit RF to this value\n"
         "                                  May cause VBV underflows!\n" );
-    H2( "      --qpmin <integer>       Set min QP [%d]\n", defaults->rc.i_qp_min );
-    H2( "      --qpmax <integer>       Set max QP [%d]\n", defaults->rc.i_qp_max );
+    H2( "      --qpmin <integer>[:<integer>:<integer>]  Set min QP of I:P:B frames [%d:%d:%d]\n", defaults->rc.i_qp_min[SLICE_TYPE_I],
+                                                                                                  defaults->rc.i_qp_min[SLICE_TYPE_P],
+                                                                                                  defaults->rc.i_qp_min[SLICE_TYPE_B] );
+    H2( "      --qpmax <integer>[:<integer>:<integer>]  Set max QP of I:P:B frames [%d:%d:%d]\n", defaults->rc.i_qp_max[SLICE_TYPE_I],
+                                                                                                  defaults->rc.i_qp_max[SLICE_TYPE_P],
+                                                                                                  defaults->rc.i_qp_max[SLICE_TYPE_B] );
     H2( "      --qpstep <integer>      Set max QP step [%d]\n", defaults->rc.i_qp_step );
     H2( "      --ratetol <float>       Tolerance of ABR ratecontrol and VBV [%.1f]\n", defaults->rc.f_rate_tolerance );
     H2( "      --ipratio <float>       QP factor between I and P [%.2f]\n", defaults->rc.f_ip_factor );
