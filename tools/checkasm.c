@@ -1971,8 +1971,14 @@ static int check_quant( int cpu_ref, int cpu_new )
             h->param.i_cqm_preset = h->pps->i_cqm_preset = X264_CQM_CUSTOM;
         }
 
-        h->param.rc.i_qp_min = 0;
-        h->param.rc.i_qp_max = QP_MAX_SPEC;
+        h->param.rc.i_qp_min_min           =
+        h->param.rc.i_qp_min[SLICE_TYPE_I] =
+        h->param.rc.i_qp_min[SLICE_TYPE_P] =
+        h->param.rc.i_qp_min[SLICE_TYPE_B] = 0;
+        h->param.rc.i_qp_max_max           =
+        h->param.rc.i_qp_max[SLICE_TYPE_I] =
+        h->param.rc.i_qp_max[SLICE_TYPE_P] =
+        h->param.rc.i_qp_max[SLICE_TYPE_B] = QP_MAX_SPEC;
         x264_cqm_init( h );
         x264_quant_init( h, 0, &qf_c );
         x264_quant_init( h, cpu_ref, &qf_ref );
@@ -2003,7 +2009,7 @@ static int check_quant( int cpu_ref, int cpu_new )
         { \
             set_func_name( #name ); \
             used_asms[0] = 1; \
-            for( int qp = h->param.rc.i_qp_max; qp >= h->param.rc.i_qp_min; qp-- ) \
+            for( int qp = h->param.rc.i_qp_max_max; qp >= h->param.rc.i_qp_min_min; qp-- ) \
             { \
                 for( int j = 0; j < 2; j++ ) \
                 { \
@@ -2029,7 +2035,7 @@ static int check_quant( int cpu_ref, int cpu_new )
         { \
             set_func_name( #qname ); \
             used_asms[0] = 1; \
-            for( int qp = h->param.rc.i_qp_max; qp >= h->param.rc.i_qp_min; qp-- ) \
+            for( int qp = h->param.rc.i_qp_max_max; qp >= h->param.rc.i_qp_min_min; qp-- ) \
             { \
                 for( int j = 0; j < maxj; j++ ) \
                 { \
@@ -2062,7 +2068,7 @@ static int check_quant( int cpu_ref, int cpu_new )
         { \
             set_func_name( "%s_%s", #dqname, i_cqm?"cqm":"flat" ); \
             used_asms[1] = 1; \
-            for( int qp = h->param.rc.i_qp_max; qp >= h->param.rc.i_qp_min; qp-- ) \
+            for( int qp = h->param.rc.i_qp_max_max; qp >= h->param.rc.i_qp_min_min; qp-- ) \
             { \
                 INIT_QUANT##w(1, w*w) \
                 qf_c.qname( dct1, h->quant##w##_mf[block][qp], h->quant##w##_bias[block][qp] ); \
@@ -2090,7 +2096,7 @@ static int check_quant( int cpu_ref, int cpu_new )
         { \
             set_func_name( "%s_%s", #dqname, i_cqm?"cqm":"flat" ); \
             used_asms[1] = 1; \
-            for( int qp = h->param.rc.i_qp_max; qp >= h->param.rc.i_qp_min; qp-- ) \
+            for( int qp = h->param.rc.i_qp_max_max; qp >= h->param.rc.i_qp_min_min; qp-- ) \
             { \
                 for( int i = 0; i < 16; i++ ) \
                     dct1[i] = rand()%(PIXEL_MAX*16*2+1) - PIXEL_MAX*16; \
@@ -2114,7 +2120,7 @@ static int check_quant( int cpu_ref, int cpu_new )
         {
             set_func_name( "idct_dequant_2x4_dc_%s", i_cqm?"cqm":"flat" );
             used_asms[1] = 1;
-            for( int qp = h->param.rc.i_qp_max; qp >= h->param.rc.i_qp_min; qp-- )
+            for( int qp = h->param.rc.i_qp_max_max; qp >= h->param.rc.i_qp_min_min; qp-- ) \
             {
                 for( int i = 0; i < 8; i++ )
                     dct1[i] = rand()%(PIXEL_MAX*16*2+1) - PIXEL_MAX*16;
@@ -2136,7 +2142,7 @@ static int check_quant( int cpu_ref, int cpu_new )
         {
             set_func_name( "idct_dequant_2x4_dc_%s", i_cqm?"cqm":"flat" );
             used_asms[1] = 1;
-            for( int qp = h->param.rc.i_qp_max; qp >= h->param.rc.i_qp_min; qp-- )
+            for( int qp = h->param.rc.i_qp_max_max; qp >= h->param.rc.i_qp_min_min; qp-- ) \
             {
                 for( int i = 0; i < 8; i++ )
                     dct1[i] = rand()%(PIXEL_MAX*16*2+1) - PIXEL_MAX*16;
@@ -2161,7 +2167,7 @@ static int check_quant( int cpu_ref, int cpu_new )
         { \
             set_func_name( #optname ); \
             used_asms[2] = 1; \
-            for( int qp = h->param.rc.i_qp_max; qp >= h->param.rc.i_qp_min; qp-- ) \
+            for( int qp = h->param.rc.i_qp_max_max; qp >= h->param.rc.i_qp_min_min; qp-- ) \
             { \
                 int qpdc = qp + (size == 8 ? 3 : 0); \
                 int dmf = h->dequant4_mf[CQM_4IC][qpdc%6][0] << qpdc/6; \
