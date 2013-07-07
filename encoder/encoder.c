@@ -639,8 +639,12 @@ static int validate_parameters( x264_t *h, int b_open )
         score += h->param.analyse.i_me_range == 0;
         score += h->param.rc.i_qp_step == 3;
         score += h->param.i_keyint_max == 12;
-        score += h->param.rc.i_qp_min == 2;
-        score += h->param.rc.i_qp_max == 31;
+        score += h->param.rc.i_qp_min[SLICE_TYPE_I] == 2 ||
+                 h->param.rc.i_qp_min[SLICE_TYPE_P] == 2 ||
+                 h->param.rc.i_qp_min[SLICE_TYPE_B] == 2;
+        score += h->param.rc.i_qp_max[SLICE_TYPE_I] == 31 ||
+                 h->param.rc.i_qp_max[SLICE_TYPE_P] == 31 ||
+                 h->param.rc.i_qp_max[SLICE_TYPE_B] == 31;
         score += h->param.rc.f_qcompress == 0.5;
         score += fabs(h->param.rc.f_ip_factor - 1.25) < 0.01;
         score += fabs(h->param.rc.f_pb_factor - 1.25) < 0.01;
@@ -888,7 +892,9 @@ static int validate_parameters( x264_t *h, int b_open )
 
             /* Official encoder doesn't appear to go under 13
              * and Avid cannot handle negative QPs */
-            h->param.rc.i_qp_min = X264_MAX( h->param.rc.i_qp_min, QP_BD_OFFSET + 1 );
+             for( int j = 0; j < 3; j++ )
+                 h->param.rc.i_qp_min[j] = X264_MAX( h->param.rc.i_qp_min[j], QP_BD_OFFSET + 1 );
+
         }
 
         if( type )
@@ -945,22 +951,37 @@ static int validate_parameters( x264_t *h, int b_open )
         float qp_p = h->param.rc.i_qp_constant;
         float qp_i = qp_p - 6*log2f( h->param.rc.f_ip_factor );
         float qp_b = qp_p + 6*log2f( h->param.rc.f_pb_factor );
+
         if( qp_p < 0 )
         {
             x264_log( h, X264_LOG_ERROR, "qp not specified\n" );
             return -1;
         }
 
-        h->param.rc.i_qp_min = x264_clip3( (int)(X264_MIN3( qp_p, qp_i, qp_b )), 0, QP_MAX );
-        h->param.rc.i_qp_max = x264_clip3( (int)(X264_MAX3( qp_p, qp_i, qp_b ) + .999), 0, QP_MAX );
+        h->param.rc.i_qp_min[SLICE_TYPE_I] =
+        h->param.rc.i_qp_min[SLICE_TYPE_P] =
+        h->param.rc.i_qp_min[SLICE_TYPE_B] = x264_clip3( (int)(X264_MIN3( qp_p, qp_i, qp_b )), 0, QP_MAX );
+        h->param.rc.i_qp_max_max           =
+        h->param.rc.i_qp_max[SLICE_TYPE_I] =
+        h->param.rc.i_qp_max[SLICE_TYPE_P] =
+        h->param.rc.i_qp_max[SLICE_TYPE_B] = x264_clip3( (int)(X264_MAX3( qp_p, qp_i, qp_b ) + .999), 0, QP_MAX );
         h->param.rc.i_aq_mode = 0;
         h->param.rc.b_aq2 = 0;
         h->param.rc.i_aq3_mode = 0;
         h->param.rc.b_mb_tree = 0;
         h->param.rc.i_bitrate = 0;
     }
-    h->param.rc.i_qp_max = x264_clip3( h->param.rc.i_qp_max, 0, QP_MAX );
-    h->param.rc.i_qp_min = x264_clip3( h->param.rc.i_qp_min, 0, h->param.rc.i_qp_max );
+    for( int i = 0; i < 3; i++ )
+    {
+        h->param.rc.i_qp_max[i] = x264_clip3( h->param.rc.i_qp_max[i], 0, QP_MAX );
+        h->param.rc.i_qp_min[i] = x264_clip3( h->param.rc.i_qp_min[i], 0, h->param.rc.i_qp_max[i] );
+    }
+    h->param.rc.i_qp_min_min = X264_MIN3( h->param.rc.i_qp_min[SLICE_TYPE_I],
+                                          h->param.rc.i_qp_min[SLICE_TYPE_P],
+                                          h->param.rc.i_qp_min[SLICE_TYPE_B] );
+    h->param.rc.i_qp_max_max = X264_MAX3( h->param.rc.i_qp_max[SLICE_TYPE_I],
+                                          h->param.rc.i_qp_max[SLICE_TYPE_P],
+                                          h->param.rc.i_qp_max[SLICE_TYPE_B] );
     h->param.rc.i_qp_step = x264_clip3( h->param.rc.i_qp_step, 2, QP_MAX );
     h->param.rc.i_bitrate = x264_clip3( h->param.rc.i_bitrate, 0, 2000000 );
     if( h->param.rc.i_rc_method == X264_RC_ABR && !h->param.rc.i_bitrate )
@@ -1767,7 +1788,7 @@ static x264_t *encoder_open( x264_param_t *param )
 
     h->out.i_nal = 0;
     h->out.i_bitstream = X264_MAX( 1000000, h->param.i_width * h->param.i_height * 4
-        * ( h->param.rc.i_rc_method == X264_RC_ABR ? pow( 0.95, h->param.rc.i_qp_min )
+        * ( h->param.rc.i_rc_method == X264_RC_ABR ? pow( 0.95, h->param.rc.i_qp_min_min )
           : pow( 0.95, h->param.rc.i_qp_constant ) * X264_MAX( 1, h->param.rc.f_ip_factor )));
 
     h->nal_buffer_size = h->out.i_bitstream * 3/2 + 4 + 64; /* +4 for startcode, +64 for nal_escape assembly padding */
