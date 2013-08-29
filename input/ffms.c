@@ -94,11 +94,11 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
 #ifdef __MINGW32__
     /* FFMS supports UTF-8 filenames, but it uses std::fstream internally which is broken with Unicode in MinGW. */
     FFMS_Init( 0, 0 );
-    char src_filename[MAX_PATH];
-    char idx_filename[MAX_PATH];
-    FAIL_IF_ERROR( !x264_ansi_filename( psz_filename, src_filename, MAX_PATH, 0 ), "invalid ansi filename\n" );
+    char src_filename[MAX_PATH * 2];
+    char idx_filename[MAX_PATH * 2];
+    FAIL_IF_ERROR( !x264_ansi_filename( psz_filename, src_filename, MAX_PATH * 2, 0 ), "invalid ansi filename\n" );
     if( opt->index_file )
-        FAIL_IF_ERROR( !x264_ansi_filename( opt->index_file, idx_filename, MAX_PATH, 1 ), "invalid ansi filename\n" );
+        FAIL_IF_ERROR( !x264_ansi_filename( opt->index_file, idx_filename, MAX_PATH * 2, 1 ), "invalid ansi filename\n" );
 #else
     FFMS_Init( 0, 1 );
     char *src_filename = psz_filename;
