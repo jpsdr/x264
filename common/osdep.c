@@ -98,7 +98,7 @@ int x264_threading_init( void )
 /* Functions for dealing with Unicode on Windows. */
 FILE *x264_fopen( const char *filename, const char *mode )
 {
-    wchar_t filename_utf16[MAX_PATH];
+    wchar_t filename_utf16[MAX_PATH * 2];
     wchar_t mode_utf16[16];
     if( utf8_to_utf16( filename, filename_utf16 ) && utf8_to_utf16( mode, mode_utf16 ) )
         return _wfopen( filename_utf16, mode_utf16 );
@@ -107,8 +107,8 @@ FILE *x264_fopen( const char *filename, const char *mode )
 
 int x264_rename( const char *oldname, const char *newname )
 {
-    wchar_t oldname_utf16[MAX_PATH];
-    wchar_t newname_utf16[MAX_PATH];
+    wchar_t oldname_utf16[MAX_PATH * 2];
+    wchar_t newname_utf16[MAX_PATH * 2];
     if( utf8_to_utf16( oldname, oldname_utf16 ) && utf8_to_utf16( newname, newname_utf16 ) )
     {
         /* POSIX says that rename() removes the destination, but Win32 doesn't. */
@@ -120,7 +120,7 @@ int x264_rename( const char *oldname, const char *newname )
 
 int x264_stat( const char *path, x264_struct_stat *buf )
 {
-    wchar_t path_utf16[MAX_PATH];
+    wchar_t path_utf16[MAX_PATH * 2];
     if( utf8_to_utf16( path, path_utf16 ) )
         return _wstati64( path_utf16, buf );
     return -1;
