@@ -291,8 +291,8 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
 
 #ifdef _WIN32
     /* Avisynth doesn't support Unicode filenames. */
-    char ansi_filename[MAX_PATH];
-    FAIL_IF_ERROR( !x264_ansi_filename( psz_filename, ansi_filename, MAX_PATH, 0 ), "invalid ansi filename\n" );
+    char ansi_filename[MAX_PATH * 2];
+    FAIL_IF_ERROR( !x264_ansi_filename( psz_filename, ansi_filename, MAX_PATH * 2, 0 ), "invalid ansi filename\n" );
     AVS_Value arg = avs_new_value_string( ansi_filename );
 #else
     AVS_Value arg = avs_new_value_string( psz_filename );
