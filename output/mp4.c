@@ -182,9 +182,7 @@ static int open_file( char *psz_filename, hnd_t *p_handle, cli_output_opt_t *opt
 
 #ifdef _WIN32
     /* GPAC doesn't support Unicode filenames. */
-    char ansi_filename[MAX_PATH];
-    FAIL_IF_ERR( !x264_ansi_filename( psz_filename, ansi_filename, MAX_PATH, 1 ), "mp4", "invalid ansi filename\n" );
-    p_mp4->p_file = gf_isom_open( ansi_filename, GF_ISOM_OPEN_WRITE, NULL );
+    char ansi_filename[MAX_PATH * 2];    FAIL_IF_ERR( !x264_ansi_filename( psz_filename, ansi_filename, MAX_PATH * 2, 1 ), "mp4", "invalid ansi filename\n" );    p_mp4->p_file = gf_isom_open( ansi_filename, GF_ISOM_OPEN_WRITE, NULL );
 #else
     p_mp4->p_file = gf_isom_open( psz_filename, GF_ISOM_OPEN_WRITE, NULL );
 #endif
