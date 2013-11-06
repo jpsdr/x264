@@ -83,6 +83,12 @@ void flv_put_amf_double( flv_buffer *c, double d )
     flv_put_be64( c, flv_dbl2int( d ) );
 }
 
+void flv_put_amf_bool( flv_buffer *c, int i )
+{
+    flv_put_byte( c, AMF_DATA_TYPE_BOOL );
+    flv_put_byte( c, !!i );
+}
+
 /* flv writing functions */
 
 flv_buffer *flv_create_writer( const char *filename )

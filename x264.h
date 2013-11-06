@@ -809,6 +809,9 @@ typedef struct x264_picture_t
     /* Out: whether this frame is a keyframe.  Important when using modes that result in
      * SEI recovery points being used instead of IDR frames. */
     int     b_keyframe;
+    /* Out: identifier for pictures. The recovery point is specified as frame_num increment of
+     * the recovery point from the frame having the SEI. */
+    int     i_frame_num;
     /* In: user pts, Out: pts of encoded picture (user)*/
     int64_t i_pts;
     /* Out: frame dts. When the pts of the first frame is close to zero,
