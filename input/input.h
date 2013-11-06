@@ -46,6 +46,7 @@ typedef struct
     int input_range; /* user override input range */
     int demuxer_threads;
     int b_accurate_fps;
+    char *lavf_decoder;
 } cli_input_opt_t;
 
 /* properties of the source given by the demuxer */
