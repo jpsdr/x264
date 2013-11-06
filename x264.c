@@ -41,6 +41,7 @@
 #include <getopt.h>
 #include "common/common.h"
 #include "x264cli.h"
+#include "audio/encoders.h"
 #include "input/input.h"
 #include "output/output.h"
 #include "filters/filters.h"
@@ -190,7 +191,30 @@ static const char * const muxer_names[] =
 #if HAVE_GPAC || HAVE_LSMASH
     "mp4",
 #endif
+#if HAVE_LSMASH
+    "3gp",
+    "3g2",
+    "mov",
+    "qt",
+#endif
     0
+};
+
+static const char * const audio_demuxers[] =
+{
+    "auto",
+#if HAVE_AUDIO
+#if HAVE_LAVF
+    "lavf",
+#endif
+#if HAVE_AVS
+    "avs",
+#endif
+#if HAVE_LSMASH
+    "lsmash",
+#endif
+#endif /* HAVE_AUDIO */
+    NULL
 };
 
 static const char * const pulldown_names[] = { "none", "22", "32", "64", "double", "triple", "euro", 0 };
@@ -334,19 +358,24 @@ static void print_version_info( void )
     printf( "x264 configuration: --bit-depth=%d --chroma-format=%s\n", X264_BIT_DEPTH, chroma_format_names[X264_CHROMA_FORMAT] );
     printf( "libx264 configuration: --bit-depth=%d --chroma-format=%s\n", x264_bit_depth, chroma_format_names[x264_chroma_format] );
     printf( "x264 license: " );
-#if HAVE_GPL
+#if HAVE_NONFREE
+    printf( "Non-Free\n" );
+#elif HAVE_GPL
     printf( "GPL version 2 or later\n" );
 #else
     printf( "Non-GPL commercial\n" );
 #endif
+    int redist = !HAVE_NONFREE;
 #if HAVE_SWSCALE
     const char *license = swscale_license();
     printf( "libswscale%s%s license: %s\n", HAVE_LAVF ? "/libavformat" : "", HAVE_FFMS ? "/ffmpegsource" : "" , license );
     if( !strcmp( license, "nonfree and unredistributable" ) ||
        (!HAVE_GPL && (!strcmp( license, "GPL version 2 or later" )
                   ||  !strcmp( license, "GPL version 3 or later" ))))
-        printf( "WARNING: This binary is unredistributable!\n" );
+        redist = 0;
 #endif
+    if( !redist )
+        printf( "WARNING: This binary is unredistributable!\n" );
 }
 
 int main( int argc, char **argv )
@@ -483,6 +512,11 @@ static void help( x264_param_t *defaults, int longhelp )
         " .mkv -> Matroska\n"
         " .flv -> Flash Video\n"
         " .mp4 -> MP4 if compiled with GPAC or L-SMASH support (%s)\n"
+#if HAVE_LSMASH
+        " .3gp -> MP4 (branded '3gp6')\n"
+        " .3g2 -> MP4 (branded '3gp6' and '3g2a')\n"
+        " .mov or .qt -> QuickTime File Format\n"
+#endif
         "Output bit depth: %d (configured at compile time)\n"
         "\n"
         "Options:\n"
@@ -871,6 +905,35 @@ static void help( x264_param_t *defaults, int longhelp )
         "                              cropping rectangle\n" );
 
     H0( "\n" );
+    H0( "Audio:\n" );
+    H0( "\n" );
+    H0( "      Audio options may be used if audio support is compiled in.\n" );
+    H0( "      Audio is automatically opened from the input file if supported by the demuxer.\n" );
+    H0( "\n" );
+    H0( "      --audiofile <filename>  Uses audio from the specified file\n" );
+    H1( "      --ademuxer <string>     Demux audio by the specified demuxer [%s]\n"
+        "                              Supported and compiled in demuxers:\n"
+        "                                  - %s\n", audio_demuxers[0], stringify_names( buf, audio_demuxers ) );
+    H0( "      --atrack <integer>      Audio track number [auto]\n" );
+    H0( "      --acodec <string>       Audio codec [auto]\n" );
+    H1( "                              Available settings:\n" );
+    H1( "                                  - auto (select muxer default codec and its default encoder)\n" );
+    H1( "                                  - copy (copy source audio without transcoding)\n" );
+    H1( "                                  - none (disable audio)\n" );
+    H1( "                                Set audio format only and automatically choose encoder\n" );
+    x264_audio_encoder_list_codecs( longhelp );
+    H2( "                                Force to use specified audio encoder\n" );
+    H2( "                                'ff' prefix indicate they are supported via libavcodec\n" );
+    x264_audio_encoder_list_encoders( longhelp );
+    H0( "      --abitrate <float>      Enables bitrate mode and set bitrate (kbits/s)\n" );
+    H0( "      --aquality <float>      Quality-based VBR [codec-dependent default]\n" );
+    H0( "      --asamplerate <integer> Audio samplerate (Hz) [keep source samplerate]\n" );
+    H0( "      --acodec-quality <float> Codec's internal compression quality [codec specific]\n" );
+    H1( "      --aextraopt <string>    Pass extra option to codec [codec specific]\n" );
+    H1( "                              Should be comma separated \"name=value\" style\n" );
+    H0( "\n" );
+    x264_audio_encoder_show_help( longhelp );
+    H0( "\n" );
     H0( "Input/Output:\n" );
     H0( "\n" );
     H0( "  -o, --output <string>       Specify output file\n" );
@@ -929,7 +992,19 @@ static void help( x264_param_t *defaults, int longhelp )
     H2( "      --timebase <int/int>    Specify timebase numerator and denominator\n"
         "                 <integer>    Specify timebase numerator for input timecode file\n"
         "                              or specify timebase denominator for other input\n" );
+    H2( "Muxer specific:\n" );
+    H2( " [mp4/3gp/3g2/mov/flv]\n" );
     H2( "      --dts-compress          Eliminate initial delay with container DTS hack\n" );
+    H2( " [mp4/3gp/3g2/mov]\n" );
+    H2( "      --chapter <string>      Set the chapter list from chapter format file\n" );
+    H2( "      --chpl-with-bom         Add UTF-8 BOM to the chapter strings\n"
+        "                              in the chapter list. (experimental)\n" );
+    H2( "      --language <string>     Set the language by ISO639-2/T language codes\n" );
+    H2( "      --no-container-sar      Disable sample aspect ratio within the container\n" );
+    H2( "      --no-remux              Inhibit auto-remuxing for progressive download\n" );
+    H2( "      --force-display-size    Force display region size for video\n" );
+    H2( "      --fragments             Enable movie fragments structure\n" );
+    H2( "      --priming <integer>     Specify the number of priming samples for the copied audio\n" );
     H0( "\n" );
     H0( "Filtering:\n" );
     H0( "\n" );
@@ -975,7 +1050,24 @@ typedef enum
     OPT_DTS_COMPRESSION,
     OPT_OUTPUT_CSP,
     OPT_INPUT_RANGE,
-    OPT_RANGE
+    OPT_RANGE,
+    OPT_AUDIOFILE,
+    OPT_AUDIODEMUXER,
+    OPT_AUDIOTRACK,
+    OPT_AUDIOCODEC,
+    OPT_AUDIOBITRATE,
+    OPT_AUDIOQUALITY,
+    OPT_AUDIOSAMPLERATE,
+    OPT_AUDIOCODECQUALITY,
+    OPT_AUDIOEXTRAOPT,
+    OPT_CHAPTER,
+    OPT_CHPL_WITH_BOM,
+    OPT_LANGUAGE,
+    OPT_NO_CONTAINER_SAR,
+    OPT_NO_REMUX,
+    OPT_FORCE_DISPLAY_SIZE,
+    OPT_FRAGMENTS,
+    OPT_PRIMING
 } OptionsOPT;
 
 static char short_options[] = "8A:B:b:f:hI:i:m:o:p:q:r:t:Vvw";
@@ -1144,16 +1236,34 @@ static struct option long_options[] =
     { "input-range", required_argument, NULL, OPT_INPUT_RANGE },
     { "stitchable",        no_argument, NULL, 0 },
     { "filler",            no_argument, NULL, 0 },
+    { "audiofile",   required_argument, NULL, OPT_AUDIOFILE },
+    { "ademuxer",    required_argument, NULL, OPT_AUDIODEMUXER },
+    { "atrack",      required_argument, NULL, OPT_AUDIOTRACK },
+    { "acodec",      required_argument, NULL, OPT_AUDIOCODEC },
+    { "abitrate",    required_argument, NULL, OPT_AUDIOBITRATE },
+    { "aquality",    required_argument, NULL, OPT_AUDIOQUALITY },
+    { "asamplerate", required_argument, NULL, OPT_AUDIOSAMPLERATE },
+    { "acodec-quality",    required_argument, NULL, OPT_AUDIOCODECQUALITY },
+    { "aextraopt",   required_argument, NULL, OPT_AUDIOEXTRAOPT },
+    { "chapter",     required_argument, NULL, OPT_CHAPTER },
+    { "chpl-with-bom",     no_argument, NULL, OPT_CHPL_WITH_BOM },
+    { "language",    required_argument, NULL, OPT_LANGUAGE },
+    { "no-container-sar",  no_argument, NULL, OPT_NO_CONTAINER_SAR },
+    { "no-remux",    no_argument, NULL, OPT_NO_REMUX },
+    { "force-display-size", required_argument, NULL, OPT_FORCE_DISPLAY_SIZE },
+    { "fragments",         no_argument, NULL, OPT_FRAGMENTS },
+    { "priming",     required_argument, NULL, OPT_PRIMING },
     {0, 0, 0, 0}
 };
 
-static int select_output( const char *muxer, char *filename, x264_param_t *param )
+static int select_output( const char *muxer, char *filename, x264_param_t *param, cli_output_opt_t *opt )
 {
     const char *ext = get_filename_extension( filename );
     if( !strcmp( filename, "-" ) || strcasecmp( muxer, "auto" ) )
         ext = muxer;
 
-    if( !strcasecmp( ext, "mp4" ) )
+    if( !strcasecmp( ext, "mp4" ) || !strcasecmp( ext, "3gp" ) || !strcasecmp( ext, "3g2" ) ||
+        !strcasecmp( ext, "mov" ) || !strcasecmp( ext, "qt" ) )
     {
 #if HAVE_GPAC || HAVE_LSMASH
         cli_output = mp4_output;
@@ -1167,6 +1277,14 @@ static int select_output( const char *muxer, char *filename, x264_param_t *param
 #else
         x264_cli_log( "x264", X264_LOG_ERROR, "not compiled with MP4 output support\n" );
         return -1;
+#endif
+#if HAVE_LSMASH
+        if( !strcasecmp( ext, "3gp" ) )
+            opt->mux_3gp = 1;
+        else if( !strcasecmp( ext, "3g2" ) )
+            opt->mux_3g2 = 1;
+        else if( !strcasecmp( ext, "mov" ) || !strcasecmp( ext, "qt" ) )
+            opt->mux_mov = 1;
 #endif
     }
     else if( !strcasecmp( ext, "mkv" ) )
@@ -1323,6 +1441,40 @@ static int init_vid_filters( char *sequence, hnd_t *handle, video_info_t *info, 
     return 0;
 }
 
+static int select_audio_demuxer( const char *demuxer, char *used_demuxer, char **encoder, char *filename )
+{
+    int b_auto = !strcasecmp( demuxer, "auto" );
+    const char *module = b_auto ? NULL : demuxer;
+    const char UNUSED *ext = get_filename_extension( filename );
+    if( b_auto )
+    {
+        if( !strcasecmp( ext, "avs" ) )
+        {
+#if HAVE_AVS
+            module = "avs";
+#else
+            x264_cli_log( "x264", X264_LOG_ERROR, "not compiled with AVS audio input support\n" );
+            return -1;
+#endif
+        }
+#if HAVE_LAVF
+        if( !module )
+            module = "lavf";
+#endif
+    }
+
+    if( !module )
+        return -1;
+
+#if HAVE_LSMASH
+    if( !strcasecmp( module, "lsmash" ) )
+        *encoder = "copy";
+#endif
+
+    strcpy( used_demuxer, module );
+    return 0;
+}
+
 static int parse_enum_name( const char *arg, const char * const *names, const char **dst )
 {
     for( int i = 0; names[i]; i++ )
@@ -1364,6 +1516,22 @@ static int parse( int argc, char **argv, x264_param_t *param, cli_opt_t *opt )
     cli_output_opt_t output_opt;
     char *preset = NULL;
     char *tune = NULL;
+
+    char *audio_enc      = "none";
+    char *audio_filename = NULL;
+    const char *audio_demuxer = "auto";
+    int audio_track      = TRACK_ANY;
+    float audio_bitrate  = -1;
+    float audio_quality  = NAN;
+    float acodec_quality = NAN;
+    int audio_samplerate = -1;
+    int audio_enable     = 1;
+    hnd_t haud           = NULL;
+    char *audio_extraopt = NULL;
+
+#if !HAVE_AUDIO
+    audio_enable = 0;
+#endif
 
     x264_param_default( &defaults );
     cli_log_level = defaults.i_log_level;
@@ -1537,6 +1705,73 @@ static int parse( int argc, char **argv, x264_param_t *param, cli_opt_t *opt )
                 FAIL_IF_ERROR( parse_enum_value( optarg, range_names, &param->vui.b_fullrange ), "Unknown range `%s'\n", optarg );
                 input_opt.output_range = param->vui.b_fullrange += RANGE_AUTO;
                 break;
+            case OPT_AUDIOCODEC:
+                audio_enc = optarg;
+                if( !strcmp( audio_enc, "none" ) )
+                    audio_enable = 0;
+                else
+                {
+                    FAIL_IF_ERROR( strcmp( audio_enc, "auto" ) && strcmp( audio_enc, "copy" ) &&
+                                   !x264_audio_encoder_by_name( audio_enc, QUERY_CODEC, NULL ) && !x264_audio_encoder_by_name( audio_enc, QUERY_ENCODER, NULL ),
+                                   "audio codec '%s' not supported or not compiled in\n", audio_enc );
+#if HAVE_AUDIO
+                    audio_enable = 1;
+#else
+                    x264_cli_log( "x264", X264_LOG_WARNING, "audio not compiled in, --acodec ignored.\n" );
+#endif
+                }
+                break;
+            case OPT_AUDIOFILE:
+                audio_filename = optarg;
+                break;
+            case OPT_AUDIODEMUXER:
+                FAIL_IF_ERROR( parse_enum_name( optarg, audio_demuxers, &audio_demuxer ), "Unknown audio demuxer `%s'\n", optarg )
+                break;
+            case OPT_AUDIOTRACK:
+                audio_track = atoi( optarg );
+                break;
+            case OPT_AUDIOBITRATE:
+                audio_bitrate = atof( optarg );
+                FAIL_IF_ERROR( audio_bitrate <= 0, "bitrate must be > 0.\n" );
+                break;
+            case OPT_AUDIOQUALITY:
+                audio_quality = (float) atof( optarg );
+                break;
+            case OPT_AUDIOCODECQUALITY:
+                acodec_quality = (float) atof( optarg );
+                break;
+            case OPT_AUDIOSAMPLERATE:
+                audio_samplerate = atoi( optarg );
+                break;
+            case OPT_AUDIOEXTRAOPT:
+                audio_extraopt = optarg;
+                break;
+            case OPT_CHAPTER:
+                output_opt.chapter = optarg;
+                break;
+            case OPT_CHPL_WITH_BOM:
+                output_opt.add_bom = 1;
+                break;
+            case OPT_LANGUAGE:
+                output_opt.language = optarg;
+                break;
+            case OPT_NO_CONTAINER_SAR:
+                output_opt.no_sar = 1;
+                break;
+            case OPT_NO_REMUX:
+                output_opt.no_remux = 1;
+                break;
+            case OPT_FORCE_DISPLAY_SIZE:
+                FAIL_IF_ERROR( 2 != sscanf( optarg, "%lfx%lf", &output_opt.display_width, &output_opt.display_height ),
+                               "invalid syntax for specifying display size: %s", optarg );
+                FAIL_IF_ERROR( output_opt.display_width <= 0 || output_opt.display_height <= 0, "display size must be positive.\n" );
+                break;
+            case OPT_FRAGMENTS:
+                output_opt.fragments = 1;
+                break;
+            case OPT_PRIMING:
+                output_opt.priming = atoi( optarg );
+                break;
             default:
 generic_option:
             {
@@ -1579,10 +1814,9 @@ generic_option:
     FAIL_IF_ERROR( optind > argc - 1 || !output_filename, "No %s file. Run x264 --help for a list of options.\n",
                    optind > argc - 1 ? "input" : "output" );
 
-    if( select_output( muxer, output_filename, param ) )
+    if( select_output( muxer, output_filename, param, &output_opt ) )
         return -1;
-    FAIL_IF_ERROR( cli_output.open_file( output_filename, &opt->hout, &output_opt ), "could not open output file `%s'\n", output_filename );
-
+    FAIL_IF_ERROR( cli_output.open_file( output_filename, &opt->hout, &output_opt, haud, audio_enc, NULL ) < 0, "could not open output file `%s'\n", output_filename );
     input_filename = argv[optind++];
     video_info_t info = {0};
     char demuxername[5];
@@ -1611,11 +1845,49 @@ generic_option:
     FAIL_IF_ERROR( !opt->hin && cli_input.open_file( input_filename, &opt->hin, &info, &input_opt ),
                    "could not open input file `%s'\n", input_filename );
 
+    if( audio_enable )
+    {
+        if( audio_filename )
+        {
+            char used_demuxer[8];
+            FAIL_IF_ERROR( select_audio_demuxer( audio_demuxer, used_demuxer, &audio_enc, audio_filename ), "no audio demuxer was found for --audiofile.\n" )
+            haud = x264_audio_open_from_file( used_demuxer, audio_filename, audio_track );
+        }
+        else if( cli_input.open_audio )
+            haud = cli_input.open_audio( opt->hin, audio_track );
+        else
+            audio_enable = 0;
+
+        if( audio_filename && ( audio_enable && !haud ) )
+            return -1;
+    }
+
     x264_reduce_fraction( &info.sar_width, &info.sar_height );
     x264_reduce_fraction( &info.fps_num, &info.fps_den );
     x264_cli_log( demuxername, X264_LOG_INFO, "%dx%d%c %u:%u @ %u/%u fps (%cfr)\n", info.width,
                   info.height, info.interlaced ? 'i' : 'p', info.sar_width, info.sar_height,
                   info.fps_num, info.fps_den, info.vfr ? 'v' : 'c' );
+
+    char arg[MAX_ARGS] = { 0 };
+    int len = 0;
+    if( audio_enable )
+    {
+        if( audio_bitrate > 0 )
+            len += snprintf( &arg[len], MAX_ARGS, "is_vbr=0,bitrate=%f", audio_bitrate );
+        else if( isfinite( audio_quality ) )
+            len += snprintf( &arg[len], MAX_ARGS, "is_vbr=1,bitrate=%f", audio_quality );
+
+        if( isfinite( acodec_quality ) )
+            len += snprintf( &arg[len], MAX_ARGS - len, "%squality=%f", len ? "," : "", acodec_quality );
+
+        if( audio_samplerate > 0 )
+            len += snprintf( &arg[len], MAX_ARGS - len, "%ssamplerate=%d", len ? "," : "", audio_samplerate );
+
+        if( audio_extraopt )
+            len += snprintf( &arg[len], MAX_ARGS - len, "%s%s", len ? "," : "", audio_extraopt );
+    }
+
+    FAIL_IF_ERROR( cli_output.open_file( output_filename, &opt->hout, &output_opt, haud, audio_enc, arg ) < 0, "could not open output file `%s'\n", output_filename )
 
     if( tcfile_name )
     {
