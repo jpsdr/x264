@@ -31,12 +31,25 @@
 
 typedef struct
 {
+    double display_width;
+    double display_height;
     int use_dts_compress;
+    int no_sar;
+    int no_remux;
+    int fragments;
+    int mux_mov;
+    int mux_3gp;
+    int mux_3g2;
+    char *chapter;
+    int add_bom;
+    char *language;
+    uint32_t priming;
+    int no_progress;
 } cli_output_opt_t;
 
 typedef struct
 {
-    int (*open_file)( char *psz_filename, hnd_t *p_handle, cli_output_opt_t *opt );
+    int (*open_file)( char *psz_filename, hnd_t *p_handle, cli_output_opt_t *opt, hnd_t audio_filters, char *audio_encoder, char *audio_parameters );
     int (*set_param)( hnd_t handle, x264_param_t *p_param );
     int (*write_headers)( hnd_t handle, x264_nal_t *p_nal );
     int (*write_frame)( hnd_t handle, uint8_t *p_nal, int i_size, x264_picture_t *p_picture );
