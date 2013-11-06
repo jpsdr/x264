@@ -210,9 +210,17 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
     if( opt->demuxer_threads > 1 )
         c->thread_count = opt->demuxer_threads;
 
-    AVCodec *p         = avcodec_find_decoder(c->codec_id);
-    FAIL_IF_ERROR( avcodec_open2( c, p, NULL ),
+    AVCodec *p;
+    if( opt->lavf_decoder )
+        p = avcodec_find_decoder_by_name(opt->lavf_decoder);
+    else
+        p = avcodec_find_decoder(c->codec_id);
+    AVDictionary *avcodec_opts = NULL;
+    av_dict_set( &avcodec_opts, "strict", "-2", 0 );
+    FAIL_IF_ERROR( avcodec_open2( c, p, &avcodec_opts ),
                    "could not find decoder for video stream\n" );
+    if( avcodec_opts )
+        av_dict_free( &avcodec_opts );
 
     /* prefetch the first frame and set/confirm flags */
     h->first_pic = malloc( sizeof(cli_pic_t) );
