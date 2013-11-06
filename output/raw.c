@@ -26,8 +26,11 @@
 
 #include "output.h"
 
-static int open_file( char *psz_filename, hnd_t *p_handle, cli_output_opt_t *opt )
+static int open_file( char *psz_filename, hnd_t *p_handle, cli_output_opt_t *opt, hnd_t audio_filters, char *audio_enc, char *audio_params )
 {
+    FAIL_IF_ERR( audio_enc && ( strcmp( audio_enc, "none" ) && strcmp( audio_enc, "auto" ) ), "raw",
+                 "audio is not supported on this muxer\n" );
+
     if( !strcmp( psz_filename, "-" ) )
         *p_handle = stdout;
     else if( !(*p_handle = x264_fopen( psz_filename, "w+b" )) )
