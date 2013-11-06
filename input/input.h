@@ -97,6 +97,7 @@ typedef struct
     int (*release_frame)( cli_pic_t *pic, hnd_t handle );
     void (*picture_clean)( cli_pic_t *pic, hnd_t handle );
     int (*close_file)( hnd_t handle );
+    hnd_t (*open_audio)( hnd_t handle, int track );
 } cli_input_t;
 
 extern const cli_input_t raw_input;
