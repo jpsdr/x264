@@ -319,6 +319,14 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
     }
     else /* non script file */
     {
+        /* AviSynth+ need explicit invoke of AutoloadPlugins() for registering plugins functions */
+        if( h->func.avs_function_exists( h->env, "AutoloadPlugins" ) )
+        {
+            res = h->func.avs_invoke( h->env, "AutoloadPlugins", avs_new_value_array( NULL, 0 ), NULL );
+            if( avs_is_error( res ) )
+                x264_cli_log( "avs", X264_LOG_INFO, "AutoloadPlugins failed: %s\n", avs_as_string( res ) );
+        }
+
         /* cycle through known source filters to find one that works */
         const char *filter[AVS_MAX_SEQUENCE+1] = { 0 };
         avs_build_filter_sequence( filename_ext, filter );
