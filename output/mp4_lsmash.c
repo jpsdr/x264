@@ -139,15 +139,13 @@ typedef struct
     int b_no_pasp;
     int b_force_display_size;
     int b_fragments;
-    lsmash_file_parameters_t file_param;    lsmash_scale_method scale_method;
+    lsmash_file_parameters_t file_param;
+	lsmash_scale_method scale_method;
 #if HAVE_ANY_AUDIO
     mp4_audio_hnd_t *audio_hnd;
 #endif
-    int b_no_progress;    lsmash_scale_method scale_method;
-#if HAVE_ANY_AUDIO
-    mp4_audio_hnd_t *audio_hnd;
-#endif
-    int b_no_progress;} mp4_hnd_t;
+    int b_no_progress;
+} mp4_hnd_t;
 
 /*******************/
 
@@ -786,12 +784,12 @@ static int set_param_audio( mp4_hnd_t* p_mp4, uint64_t i_media_timescale, lsmash
             p_audio->summary->aot = MP4A_AUDIO_OBJECT_TYPE_AAC_LC;
         p_audio->summary->sbr_mode = p_audio->has_sbr ? MP4A_AAC_SBR_BACKWARD_COMPATIBLE : MP4A_AAC_SBR_NOT_SPECIFIED;
     }
-    else if( lsmash_check_codec_type_identical( p_audio->codec_type, ISOM_CODEC_TYPE_SAMR_AUDIO )
+/*    else if( lsmash_check_codec_type_identical( p_audio->codec_type, ISOM_CODEC_TYPE_SAMR_AUDIO )
           || lsmash_check_codec_type_identical( p_audio->codec_type, ISOM_CODEC_TYPE_SAWB_AUDIO ) )
     {
             MP4_FAIL_IF_ERR( mp4sys_amr_create_damr( p_audio->summary ),
                              "failed to create AMR specific info.\n" );
-    }
+    }*/
 #else
     /*
      * NOTE: Retrieve audio summary, which will be used for lsmash_add_sample_entry() as audio parameters.
@@ -1226,7 +1224,7 @@ static int set_param( hnd_t handle, x264_param_t *p_param )
     /* Set movie parameters. */
     lsmash_movie_parameters_t movie_param;
     lsmash_initialize_movie_parameters( &movie_param );
-    movie_param.minor_version = minor_version;
+//    movie_param.minor_version = minor_version;
     MP4_FAIL_IF_ERR( lsmash_set_movie_parameters( p_mp4->p_root, &movie_param ),
                      "failed to set movie parameters.\n" );
     p_mp4->i_movie_timescale = lsmash_get_movie_timescale( p_mp4->p_root );
