@@ -1469,7 +1469,7 @@ void x264_cabac_encode_flush( x264_t *h, x264_cabac_t *cb )
     cabac_putbyte( cb );
     cabac_putbyte( cb );
     cb->i_low <<= -cb->i_queue;
-    cb->i_low |= (0x35a4e4f5 >> (h->i_frame & 31) & 1) << 10;
+//    cb->i_low |= (0x35a4e4f5 >> (h->i_frame & 31) & 1) << 10;
     cb->i_queue = 0;
     cabac_putbyte( cb );
 
