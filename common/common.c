@@ -118,7 +118,7 @@ void x264_param_default( x264_param_t *param )
     param->rc.i_qp_step = 4;
     param->rc.f_ip_factor = 1.4;
     param->rc.f_pb_factor = 1.3;
-    param->rc.i_aq_mode = X264_AQ_MIX;
+    param->rc.i_aq_mode = X264_AQ_VARIANCE;
     param->rc.f_aq_strength = 1.0;
     param->rc.f_aq_sensitivity = 10;
     param->rc.f_aq_ifactor = 1.0;
@@ -410,7 +410,7 @@ static int x264_param_apply_tune( x264_param_t *param, const char *tune )
         else if( !strncasecmp( s, "ssim", 4 ) )
         {
             if( psy_tuning_used++ ) goto psy_failure;
-            param->rc.i_aq_mode = X264_AQ_AUTOMIX;
+            param->rc.i_aq_mode = X264_AQ_AUTOVARIANCE;
             param->analyse.b_psy = 0;
         }
         else if( !strncasecmp( s, "fastdecode", 10 ) )
