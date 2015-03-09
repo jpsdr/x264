@@ -348,8 +348,8 @@ int mk_write_track( mk_writer *w, mk_context *c, mk_track_t track )
             CHECK( mk_write_uint( t, 0x54b2, track.info.v.display_size_units ) );
             CHECK( mk_write_uint( t, 0x54b0, track.info.v.display_width ) );
             CHECK( mk_write_uint( t, 0x54ba, track.info.v.display_height ) );
-            if( track.info.v.stereo_mode >= 0 && track.info.v.stereo_mode <= 5 )
-                CHECK( mk_write_uint( t, 0x53b8, mk_stereo_modes[track.info.v.stereo_mode] ) );
+            if( track.info.v.stereo_mode >= 0 )
+                CHECK( mk_write_uint( t, 0x53b8, track.info.v.stereo_mode ) );
             CHECK( mk_close_context( t, 0 ) );
             break;
         case MK_TRACK_AUDIO:
