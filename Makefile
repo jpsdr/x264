@@ -290,9 +290,9 @@ SRC2 = $(SRCS) $(SRCCLI)
 OPT0 = --crf 30 -b1 -m1 -r1 --me dia --no-cabac --direct temporal --ssim --no-weightb
 OPT1 = --crf 16 -b2 -m3 -r3 --me hex --no-8x8dct --direct spatial --no-dct-decimate -t0  --slice-max-mbs 50
 OPT2 = --crf 26 -b4 -m5 -r2 --me hex --cqm jvt --nr 100 --psnr --no-mixed-refs --b-adapt 2 --slice-max-size 1500
-OPT3 = --crf 18 -b3 -m9 -r5 --me umh -t1 -A all --b-pyramid normal --direct auto --no-fast-pskip --no-mbtree
+OPT3 = --crf 18 -b3 -m9 -r5 --me umh -t1 -A all --b-pyramid normal --direct auto --no-fast-pskip --no-mbtree --open-gop
 OPT4 = --crf 22 -b3 -m7 -r4 --me esa -t2 -A all --psy-rd 1.0:1.0 --slices 4 --fgo 8 --fade-compensate 0.5 --aq2-strength 0.5 --aq3-mode 2
-OPT5 = --frames 50 --crf 24 -b3 -m10 -r3 --me tesa -t2
+OPT5 = --crf 17 -b3 -m10 -r4 --me tesa -t2 --aq-mode 3 --b-pyramid strict --aq2-strength 1.0 --aq3-mode 1 --slices 4 --open-gop --bluray-compat
 OPT6 = --frames 50 -q0 -m9 -r2 --me hex -Aall
 OPT7 = --frames 50 -q0 -m2 -r1 --me hex --no-cabac
 
