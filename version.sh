@@ -14,7 +14,7 @@ elif [ $CHROMA_FORMATS == "X264_CSP_I422" ] ; then
 elif [ $CHROMA_FORMATS == "X264_CSP_I444" ] ; then
     CHROMA_FORMATS="4:4:4"
 fi
-BUILD_ARCH=`grep "ARCH=" < config.mak | awk -F= '{print $2}'`
+BUILD_ARCH=`grep "SYS_ARCH=" < config.mak | awk -F= '{print $2}'`
 if [ $LOCAL_VER \> 1 ] ; then
     PLAIN_VER=`git rev-list porigin/master | sort | join config.git-hash - | wc -l | awk '{print $1}'`
     echo "#define X264_REV $PLAIN_VER"
