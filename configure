@@ -1530,8 +1530,6 @@ cat > x264_config.h << EOF
 #define X264_CHROMA_FORMAT $config_chroma_format
 EOF
 
-${SRCPATH}/version.sh >> x264_config.h
-
 if [ "$cli_libx264" = "system" ] ; then
     if [ "$shared" = "yes" ]; then
         CLI_LIBX264='$(SONAME)'
@@ -1692,6 +1690,8 @@ fi
 
 echo "LDFLAGSCLI = $LDFLAGSCLI" >> config.mak
 echo "CLI_LIBX264 = $CLI_LIBX264" >> config.mak
+
+${SRCPATH}/version.sh "${SRCPATH}" >> x264_config.h
 
 cat > x264.pc << EOF
 prefix=$prefix
