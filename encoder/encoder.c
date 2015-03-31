@@ -1163,7 +1163,7 @@ static int x264_validate_parameters( x264_t *h, int b_open )
     h->param.rc.f_aq2_ifactor = x264_clip3f( h->param.rc.f_aq2_ifactor, -10, 10 );
     h->param.rc.f_aq2_pfactor = x264_clip3f( h->param.rc.f_aq2_pfactor, -10, 10 );
     h->param.rc.f_aq2_bfactor = x264_clip3f( h->param.rc.f_aq2_bfactor, -10, 10 );
-    h->param.rc.i_aq3_mode = x264_clip3( h->param.rc.i_aq3_mode, 0, 2 );
+    h->param.rc.i_aq3_mode = x264_clip3( h->param.rc.i_aq3_mode, 0, 4 );
     h->param.rc.f_aq3_strength = x264_clip3f( h->param.rc.f_aq3_strength, -3, 3 );
     for( int i = 0; i < 2; i++ )
         for( int j = 0; j < 4; j++ )
