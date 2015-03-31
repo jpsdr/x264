@@ -937,7 +937,9 @@ static void help( x264_param_t *defaults, int longhelp )
     H2( "      --aq3-mode <integer>    3rd AQ (OreAQ) method [%d]\n"
         "                                  - 0: Disabled\n"
         "                                  - 1: OreAQ\n"
-        "                                  - 2: MixOre (experimental)\n", defaults->rc.i_aq3_mode );
+        "                                  - 2: MixOre\n"
+        "                                  - 3: OraAQ with expended thresholds\n"
+        "                                  - 4: MixOre with expended thresholds\n", defaults->rc.i_aq3_mode );
     H1( "      --aq3-strength <float>  Reduces blocking and blurring in bump and\n"
         "                              clear-cut areas. [%.1f]\n", defaults->rc.f_aq3_strength );
     H2( "                    <Up:Down> or <Up1:Down1:Up2:Down2:Up3:Down3:Up4:OtherStuff>\n"
