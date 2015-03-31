@@ -192,6 +192,8 @@ typedef struct x264_nal_t
 #define X264_AQ_AUTOVARIANCE_BIASED  3
 #define X264_AQ_ORE                  1
 #define X264_AQ_MIXORE               2
+#define X264_AQ_ORE_2                3
+#define X264_AQ_MIXORE_2             4
 #define X264_B_ADAPT_NONE            0
 #define X264_B_ADAPT_FAST            1
 #define X264_B_ADAPT_TRELLIS         2
