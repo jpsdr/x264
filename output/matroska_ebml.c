@@ -376,7 +376,7 @@ int mk_write_header( mk_writer *w, const char *writing_app, int64_t timescale,
                      mk_track_t *tracks, int track_count )
 {
     mk_context  *c;
-    int i;
+    int i,j;
 
     if( w->wrote_header )
         return -1;
@@ -388,12 +388,19 @@ int mk_write_header( mk_writer *w, const char *writing_app, int64_t timescale,
 
     if( !(c = mk_create_context( w, w->root, 0x1a45dfa3 )) ) // EBML
         return -1;
+		
+	j=-1;
+	for( i=1; i<=track_count; i++ )
+		if (tracks[i].type==MK_TRACK_VIDEO) j=i;
+	
     CHECK( mk_write_uint( c, 0x4286, 1 ) ); // EBMLVersion
     CHECK( mk_write_uint( c, 0x42f7, 1 ) ); // EBMLReadVersion
     CHECK( mk_write_uint( c, 0x42f2, 4 ) ); // EBMLMaxIDLength
     CHECK( mk_write_uint( c, 0x42f3, 8 ) ); // EBMLMaxSizeLength
     CHECK( mk_write_string( c, 0x4282, "matroska") ); // DocType
-    CHECK( mk_write_uint( c, 0x4287, stereo_mode >= 0 ? 3 : 2 ) ); // DocTypeVersion
+	if (j==-1) CHECK( mk_write_uint( c, 0x4287, 2 ) ); // DocTypeVersion
+	else CHECK( mk_write_uint( c, 0x4287, tracks[j].info.v.stereo_mode >= 0 ? 3 : 2 ) ); // DocTypeVersion
+    CHECK( mk_write_uint( c, 0x4287, 2 ) ); // DocTypeVersion
     CHECK( mk_write_uint( c, 0x4285, 2 ) ); // DocTypeReadVersion
     CHECK( mk_close_context( c, 0 ) );
 
