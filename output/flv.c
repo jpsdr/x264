@@ -215,16 +215,25 @@ static int open_file( char *psz_filename, hnd_t *p_handle, cli_output_opt_t *opt
 #if HAVE_AUDIO
             ret = audio_init( p_flv, audio_filters, audio_enc, audio_params );
             FAIL_IF_ERR( ret < 0, "flv", "unable to init audio output\n" );
-#endif
-            if((ret==0) && !write_header( c ))
+            if((ret>=0) && !write_header( c,ret ))
+#else
+            if((ret==0) && !write_header( c,ret ))
+#endif								
             {
                 p_flv->c = c;
                 p_flv->b_dts_compress = opt->use_dts_compress;
                 *p_handle = p_flv;
-                return 0;
+#if HAVE_AUDIO
+				return ret;
+#else
+				return 0;
+#endif				
             }
-            if (ret==0) ret=-1;
-
+#if HAVE_AUDIO
+            if (ret>=0) ret=-1;
+#else
+            if (ret==0) ret=-1;		
+#endif
             fclose( c->fp );
             free( c->data );
             free( c );
