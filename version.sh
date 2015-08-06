@@ -16,7 +16,7 @@ elif [ $CHROMA_FORMATS == "X264_CSP_I444" ] ; then
 fi
 BUILD_ARCH=`grep "SYS_ARCH=" < config.mak | awk -F= '{print $2}'`
 if [ $LOCAL_VER \> 1 ] ; then
-    PLAIN_VER=`git rev-list porigin/master | sort | join config.git-hash - | wc -l | awk '{print $1}'`
+    PLAIN_VER=`git rev-list origin/master | sort | join config.git-hash - | wc -l | awk '{print $1}'`
     echo "#define X264_REV $PLAIN_VER"
     if [ $PLAIN_VER == $LOCAL_VER ] ; then
         VER=$PLAIN_VER
