@@ -1311,6 +1311,8 @@ int x264_param_parse( x264_param_t *p, const char *name, const char *value )
         p->rc.i_aq3_mode = atoi(value);
     OPT("aq3-strength")
     {
+		int i;
+		
         if( 8 == sscanf( value, "%f:%f:%f:%f:%f:%f:%f:%f",
                          &p->rc.f_aq3_strengths[0][0], &p->rc.f_aq3_strengths[1][0], &p->rc.f_aq3_strengths[0][1], &p->rc.f_aq3_strengths[1][1],
                          &p->rc.f_aq3_strengths[0][2], &p->rc.f_aq3_strengths[1][2], &p->rc.f_aq3_strengths[0][3], &p->rc.f_aq3_strengths[1][3] ) ||
