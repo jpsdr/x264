@@ -324,7 +324,7 @@ int x264_analyse_init_costs( x264_t *h )
     for( int i = 1; i <= 2*4*2048; i++ )
         logs[i] = log2f( i+1 ) * 2.0f + 1.718f;
 
-    for( int qp = X264_MIN( h->param.rc.i_qp_min_min, QP_MAX_SPEC ); qp <= h->param.rc.i_qp_max_max; qp++ )
+    for( int qp = X264_MIN( h->param.rc.i_qp_min[h->sh.i_type], QP_MAX_SPEC ); qp <= h->param.rc.i_qp_max[h->sh.i_type]; qp++ )
         if( init_costs( h, logs, qp ) )
             goto fail;
 
