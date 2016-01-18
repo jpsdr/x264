@@ -287,14 +287,17 @@ static void x264_slice_header_write( bs_t *s, x264_slice_header_t *sh, int i_nal
     sh->b_weighted_pred = 0;
     if( sh->pps->b_weighted_pred && sh->i_type == SLICE_TYPE_P )
     {
-        sh->b_weighted_pred = sh->weight[0][0].weightfn || sh->weight[0][1].weightfn || sh->weight[0][2].weightfn;
         /* pred_weight_table() */
         bs_write_ue( s, sh->weight[0][0].i_denom );
         bs_write_ue( s, sh->weight[0][1].i_denom );
         for( int i = 0; i < sh->i_num_ref_idx_l0_active; i++ )
         {
-            int luma_weight_l0_flag = !!sh->weight[i][0].weightfn;
+            int luma_weight_l0_flag = !!sh->weight[i][0].weightfn &&
+                                      !(sh->weight[i][0].i_scale == 1<<sh->weight[i][0].i_denom && sh->weight[i][0].i_offset == 0);
             int chroma_weight_l0_flag = !!sh->weight[i][1].weightfn || !!sh->weight[i][2].weightfn;
+
+            sh->b_weighted_pred |= luma_weight_l0_flag || chroma_weight_l0_flag;
+
             bs_write1( s, luma_weight_l0_flag );
             if( luma_weight_l0_flag )
             {
@@ -1264,7 +1267,7 @@ static int x264_validate_parameters( x264_t *h, int b_open )
     if( h->param.analyse.i_subpel_refine >= 10 && (h->param.analyse.i_trellis != 2 || !h->param.rc.i_aq_mode) )
         h->param.analyse.i_subpel_refine = 9;
 
-    h->param.analyse.i_weighted_pred = x264_clip3( h->param.analyse.i_weighted_pred, X264_WEIGHTP_NONE, X264_WEIGHTP_SMART );
+    h->param.analyse.i_weighted_pred = x264_clip3( h->param.analyse.i_weighted_pred, X264_WEIGHTP_NONE, X264_WEIGHTP_KMEAN );
 
     if( h->param.i_lookahead_threads == X264_THREADS_AUTO )
     {
@@ -1633,7 +1636,7 @@ x264_t *x264_encoder_open( x264_param_t *param )
     CHECKED_MALLOCZERO( h->frames.current, (h->param.i_sync_lookahead + h->param.i_bframe
                         + h->i_thread_frames + 3) * sizeof(x264_frame_t *) );
     if( h->param.analyse.i_weighted_pred > 0 )
-        CHECKED_MALLOCZERO( h->frames.blank_unused, h->i_thread_frames * 4 * sizeof(x264_frame_t *) );
+        CHECKED_MALLOCZERO( h->frames.blank_unused, h->i_thread_frames * (X264_DUPS_MAX + 4) * sizeof(x264_frame_t *) );
     h->i_ref[0] = h->i_ref[1] = 0;
     h->i_cpb_delay = h->i_coded_fields = h->i_disp_fields = 0;
     h->i_prev_duration = ((uint64_t)h->param.i_fps_den * h->sps->vui.i_time_scale) / ((uint64_t)h->param.i_fps_num * h->sps->vui.i_num_units_in_tick);
@@ -2157,11 +2160,14 @@ int x264_weighted_reference_duplicate( x264_t *h, int i_ref, const x264_weight_t
     int i = h->i_ref[0];
     int j = 1;
     x264_frame_t *newframe;
-    if( i <= 1 ) /* empty list, definitely can't duplicate frame */
+    /* If the list is empty, we can't duplicate frames.
+     * For weightp modes other than kmeans, also don't insert dupes when there is only one reference frame.
+     * Do note that this reference frame will still be weighted. */
+    if ( i < 1 || (h->param.analyse.i_weighted_pred != X264_WEIGHTP_KMEAN && i <= 1) )
         return -1;
 
-    //Duplication is only used in X264_WEIGHTP_SMART
-    if( h->param.analyse.i_weighted_pred != X264_WEIGHTP_SMART )
+    //Duplication is only used in X264_WEIGHTP_SMART and X264_WEIGHTP_KMEAN
+    if( h->param.analyse.i_weighted_pred < X264_WEIGHTP_SMART )
         return -1;
 
     /* Duplication is a hack to compensate for crappy rounding in motion compensation.
@@ -2179,7 +2185,9 @@ int x264_weighted_reference_duplicate( x264_t *h, int i_ref, const x264_weight_t
     newframe->i_reference_count = 1;
     newframe->orig = h->fref[0][i_ref];
     newframe->b_duplicate = 1;
-    memcpy( h->fenc->weight[j], w, sizeof(h->fenc->weight[i]) );
+    if( h->param.analyse.i_weighted_pred == X264_WEIGHTP_SMART ||
+        (h->param.analyse.i_weighted_pred == X264_WEIGHTP_KMEAN && w != x264_weight_none) )
+        memcpy( h->fenc->weight[j], w, sizeof(h->fenc->weight[i]) );
 
     /* shift the frames to make space for the dupe. */
     h->b_ref_reorder[0] = 1;
@@ -2220,10 +2228,7 @@ static void x264_weighted_pred_init( x264_t *h )
             if( h->fenc->weight[j][i].weightfn )
             {
                 h->sh.weight[j][i] = h->fenc->weight[j][i];
-                // if weight is useless, don't write it to stream
-                if( h->sh.weight[j][i].i_scale == 1<<h->sh.weight[j][i].i_denom && h->sh.weight[j][i].i_offset == 0 )
-                    h->sh.weight[j][i].weightfn = NULL;
-                else
+                if( !(h->sh.weight[j][i].i_scale == 1<<h->sh.weight[j][i].i_denom && h->sh.weight[j][i].i_offset == 0) )
                 {
                     if( !weightplane[!!i] )
                     {
@@ -2365,7 +2370,8 @@ static inline void x264_reference_build_list( x264_t *h, int i_poc )
     if( h->fenc->i_type == X264_TYPE_P )
     {
         int idx = -1;
-        if( h->param.analyse.i_weighted_pred >= X264_WEIGHTP_SIMPLE )
+        if( h->param.analyse.i_weighted_pred == X264_WEIGHTP_SIMPLE ||
+            h->param.analyse.i_weighted_pred == X264_WEIGHTP_SMART )
         {
             x264_weight_t w[3];
             w[1].weightfn = w[2].weightfn = NULL;
@@ -2394,6 +2400,23 @@ static inline void x264_reference_build_list( x264_t *h, int i_poc )
                 }
             }
         }
+        else if( h->param.analyse.i_weighted_pred == X264_WEIGHTP_KMEAN )
+        {
+            x264_weight_t w[3];
+            w[1].weightfn = w[2].weightfn = NULL;
+            if( h->param.rc.b_stat_read )
+                x264_ratecontrol_set_weights( h, h->fenc );
+
+            if( !h->fenc->weight[0][0].weightfn )
+            {
+                SET_WEIGHT( w[0], 1, 1, 0, -1 );
+                idx = x264_weighted_reference_duplicate( h, 0, w );
+            }
+            for ( int i = 0; h->fenc->weight[i][0].weightfn && i < X264_DUPS_MAX; i++ )
+            {
+                x264_weighted_reference_duplicate( h, 0, x264_weight_none );
+            }
+        }				
         h->mb.ref_blind_dupe = idx;
     }
 
@@ -4022,7 +4045,7 @@ static int x264_encoder_frame_end( x264_t *h, x264_t *thread_current,
         h->stat.i_mb_field[i] += h->stat.frame.i_mb_field[i];
     if( h->sh.i_type == SLICE_TYPE_P && h->param.analyse.i_weighted_pred >= X264_WEIGHTP_SIMPLE )
     {
-        h->stat.i_wpred[0] += !!h->sh.weight[0][0].weightfn;
+        h->stat.i_wpred[0] += !!h->sh.weight[0][0].weightfn || !!h->sh.weight[1][0].weightfn;
         h->stat.i_wpred[1] += !!h->sh.weight[0][1].weightfn || !!h->sh.weight[0][2].weightfn;
     }
     if( h->sh.i_type == SLICE_TYPE_B )

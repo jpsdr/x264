@@ -1013,7 +1013,8 @@ static void help( x264_param_t *defaults, int longhelp )
     H1( "      --weightp <integer>     Weighted prediction for P-frames [%d]\n"
         "                                  - 0: Disabled\n"
         "                                  - 1: Weighted refs\n"
-        "                                  - 2: Weighted refs + Duplicates\n", defaults->analyse.i_weighted_pred );
+        "                                  - 2: Weighted refs + Duplicates\n"
+        "                                  - 3: K-Means search\n", defaults->analyse.i_weighted_pred );
     H1( "      --me <string>           Integer pixel motion estimation method [\"%s\"]\n",
                                        strtable_lookup( x264_motion_est_names, defaults->analyse.i_me_method ) );
     H2( "                                  - dia: diamond search, radius 1 (fast)\n"

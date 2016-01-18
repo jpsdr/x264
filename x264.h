@@ -201,6 +201,7 @@ typedef struct x264_nal_t
 #define X264_WEIGHTP_NONE            0
 #define X264_WEIGHTP_SIMPLE          1
 #define X264_WEIGHTP_SMART           2
+#define X264_WEIGHTP_KMEAN           3
 #define X264_B_PYRAMID_NONE          0
 #define X264_B_PYRAMID_STRICT        1
 #define X264_B_PYRAMID_NORMAL        2
