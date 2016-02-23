@@ -109,7 +109,9 @@ void x264_sps_init( x264_sps_t *sps, int i_id, x264_param_t *param )
                                csp >= X264_CSP_I422 ? CHROMA_422 : CHROMA_420;
 
     sps->b_qpprime_y_zero_transform_bypass = param->rc.i_rc_method == X264_RC_CQP && param->rc.i_qp_constant == 0;
-    if( sps->b_qpprime_y_zero_transform_bypass || sps->i_chroma_format_idc == CHROMA_444 )
+    if( param->b_profile_force && param->i_profile )
+        sps->i_profile_idc  = param->i_profile;
+    else if( sps->b_qpprime_y_zero_transform_bypass || sps->i_chroma_format_idc == CHROMA_444 )
         sps->i_profile_idc  = PROFILE_HIGH444_PREDICTIVE;
     else if( sps->i_chroma_format_idc == CHROMA_422 )
         sps->i_profile_idc  = PROFILE_HIGH422;
@@ -570,26 +572,75 @@ int x264_sei_version_write( x264_t *h, bs_t *s )
     };
     char *opts = x264_param2string( &h->param, 0 );
     char *payload;
-    int length;
+    int offset = 16;
+    int length = 200;
+
+#define X264_FREE_OPTS                          \
+{                                               \
+    for( int i = 0; i < X264_OPTS_MAX; i++ )    \
+    {                                           \
+        if( h->param.psz_opts[i] )              \
+        {                                       \
+            free( h->param.psz_opts[i] );       \
+            h->param.psz_opts[i] = NULL;        \
+        }                                       \
+    }                                           \
+}
 
     if( !opts )
+    {
+        X264_FREE_OPTS
         return -1;
-    CHECKED_MALLOC( payload, 200 + strlen( opts ) );
+    }
+    if( h->param.i_opts_write & X264_OPTS_SETTING )
+        length += strlen( opts );
+    for( int i = 0; i < X264_OPTS_MAX; i++ )
+    {
+        if( h->param.psz_opts[i] )
+            length += strlen( h->param.psz_opts[i] );
+    }
+    CHECKED_MALLOC( payload, length );
 
     memcpy( payload, uuid, 16 );
-    sprintf( payload+16, "x264 - core %d%s - H.264/MPEG-4 AVC codec - "
-             "Copy%s 2003-2016 - http://www.videolan.org/x264.html - options: %s",
-             X264_BUILD, X264_VERSION, HAVE_GPL?"left":"right", opts );
+    if( !h->param.i_opts_write )
+        *(payload + offset) = '\0';
+    else
+    {
+        if( h->param.i_opts_write & X264_OPTS_PREINFO )
+            offset += sprintf( payload + offset,
+                               ( h->param.i_opts_write & X264_OPTS_INFO ) ? "%s " : "%s",
+                               h->param.psz_opts[0] );
+        if( h->param.i_opts_write & X264_OPTS_INFO )
+            offset += sprintf( payload + offset, "x264 - core %d%s - H.264/MPEG-4 AVC codec - "
+                               "Copy%s 2003-2015 - http://www.videolan.org/x264.html",
+                               X264_BUILD, X264_VERSION, HAVE_GPL?"left":"right" );
+        if( h->param.i_opts_write & X264_OPTS_POSTINFO )
+            offset += sprintf( payload + offset, " %s", h->param.psz_opts[1] );
+        if( h->param.i_opts_write & ( X264_OPTS_PREOPT | X264_OPTS_SETTING | X264_OPTS_POSTOPT ) )
+        {
+            offset += sprintf( payload + offset, " - options:" );
+            if( h->param.i_opts_write & X264_OPTS_PREOPT )
+                offset += sprintf( payload + offset, " %s", h->param.psz_opts[2] );
+            if( h->param.i_opts_write & X264_OPTS_SETTING )
+                offset += sprintf( payload + offset, " %s", opts );
+            if( h->param.i_opts_write & X264_OPTS_POSTOPT )
+                offset += sprintf( payload + offset, " %s", h->param.psz_opts[3] );
+        }
+    }
     length = strlen(payload)+1;
 
     x264_sei_write( s, (uint8_t *)payload, length, SEI_USER_DATA_UNREGISTERED );
 
+    X264_FREE_OPTS
     x264_free( opts );
     x264_free( payload );
     return 0;
 fail:
+    X264_FREE_OPTS
     x264_free( opts );
     return -1;
+
+#undef X264_FREE_OPTS
 }
 
 void x264_sei_buffering_period_write( x264_t *h, bs_t *s )
@@ -823,6 +874,22 @@ int x264_validate_levels( x264_t *h, int verbose )
     while( l->level_idc != 0 && l->level_idc != h->param.i_level_idc )
         l++;
 
+    if( h->param.b_level_force && verbose )
+    {
+        int frame_ref_bak = h->param.i_frame_reference;
+        while( dpb > l->dpb && h->param.i_frame_reference > 1 )
+        {
+            h->param.i_frame_reference--;
+            h->sps->vui.i_max_dec_frame_buffering =
+            h->sps->i_num_ref_frames = X264_MIN(16, X264_MAX3(h->param.i_frame_reference, 1 + h->sps->vui.i_num_reorder_frames,
+                                                              h->param.i_bframe_pyramid ? 4 : 1 ));
+            h->sps->i_num_ref_frames -= h->param.i_bframe_pyramid == X264_B_PYRAMID_STRICT;
+            dpb = mbs * 384 * h->sps->vui.i_max_dec_frame_buffering;
+        }
+        if( frame_ref_bak != h->param.i_frame_reference )
+            x264_log( h, X264_LOG_INFO, "Force ref-frames %d -> %d\n", frame_ref_bak, h->param.i_frame_reference );
+    }
+
     if( l->frame_size < mbs
         || l->frame_size*8 < h->sps->i_mb_width * h->sps->i_mb_width
         || l->frame_size*8 < h->sps->i_mb_height * h->sps->i_mb_height )
@@ -836,8 +903,23 @@ int x264_validate_levels( x264_t *h, int verbose )
     if( (val) > (limit) ) \
         ERROR( name " (%"PRId64") > level limit (%d)\n", (int64_t)(val), (limit) );
 
-    CHECK( "VBV bitrate", (l->bitrate * cbp_factor) / 4, h->param.rc.i_vbv_max_bitrate );
-    CHECK( "VBV buffer", (l->cpb * cbp_factor) / 4, h->param.rc.i_vbv_buffer_size );
+    int vbv_br_limit = (l->bitrate * cbp_factor) / 4;
+    int vbv_buf_limit = (l->cpb * cbp_factor) / 4;
+    if( h->param.b_level_force && verbose )
+    {
+        if( h->param.rc.i_vbv_max_bitrate > vbv_br_limit )
+        {
+            x264_log( h, X264_LOG_INFO, "Force VBV-bitrate %d -> %d\n", h->param.rc.i_vbv_max_bitrate, vbv_br_limit );
+            h->param.rc.i_vbv_max_bitrate = vbv_br_limit;
+        }
+        if( h->param.rc.i_vbv_buffer_size > vbv_buf_limit )
+        {
+            x264_log( h, X264_LOG_INFO, "Force VBV-buffer %d -> %d\n", h->param.rc.i_vbv_buffer_size, vbv_buf_limit );
+            h->param.rc.i_vbv_buffer_size = vbv_buf_limit;
+        }
+    }
+    CHECK( "VBV bitrate", vbv_br_limit, h->param.rc.i_vbv_max_bitrate );
+    CHECK( "VBV buffer", vbv_buf_limit, h->param.rc.i_vbv_buffer_size );
     CHECK( "MV range", l->mv_range, h->param.analyse.i_mv_range );
     CHECK( "interlaced", !l->frame_only, h->param.b_interlaced );
     CHECK( "fake interlaced", !l->frame_only, h->param.b_fake_interlaced );

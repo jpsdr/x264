@@ -27,7 +27,9 @@ SRCCLI = x264.c input/input.c input/timecode.c input/raw.c input/y4m.c \
          output/flv.c output/flv_bytestream.c filters/filters.c \
          filters/video/video.c filters/video/source.c filters/video/internal.c \
          filters/video/resize.c filters/video/cache.c filters/video/fix_vfr_pts.c \
-         filters/video/select_every.c filters/video/crop.c filters/video/depth.c
+         filters/video/select_every.c filters/video/crop.c filters/video/depth.c \
+         audio/audio.c audio/encoders.c filters/audio/audio_filters.c filters/audio/internal.c \
+         filters/video/hqdn3d.c filters/video/pad.c filters/video/vflip.c
 
 SRCSO =
 OBJS =
@@ -42,12 +44,21 @@ CONFIG := $(shell cat config.h)
 
 # GPL-only files
 ifneq ($(findstring HAVE_GPL 1, $(CONFIG)),)
-SRCCLI +=
+SRCCLI += filters/video/yadif.c filters/video/yadif_filter_line.c
+
+ifeq ($(SYS_ARCH),X86)
+SRCCLI += filters/video/x86/yadif_filter_line.c
+endif
+
 endif
 
 # Optional module sources
 ifneq ($(findstring HAVE_AVS 1, $(CONFIG)),)
 SRCCLI += input/avs.c
+endif
+
+ifeq ($(SYS),WINDOWS)
+SRCCLI += filters/video/subtitles.c
 endif
 
 ifneq ($(findstring HAVE_THREAD 1, $(CONFIG)),)
@@ -71,8 +82,42 @@ ifneq ($(findstring HAVE_GPAC 1, $(CONFIG)),)
 SRCCLI += output/mp4.c
 endif
 
+ifneq ($(findstring HAVE_AUDIO 1, $(CONFIG)),)
+SRCCLI += audio/encoders/enc_raw.c
+ifneq ($(findstring HAVE_LAVF 1, $(CONFIG)),)
+SRCCLI += input/audio/lavf.c
+SRCCLI += audio/encoders/enc_lavc.c
+endif
+ifneq ($(findstring HAVE_AVS 1, $(CONFIG)),)
+SRCCLI += input/audio/avs.c
+endif
+ifneq ($(findstring HAVE_LSMASH 1, $(CONFIG)),)
+SRCCLI += input/audio/lsmash.c
+endif
+endif
+
+ifneq ($(findstring HAVE_LAME 1, $(CONFIG)),)
+SRCCLI += audio/encoders/enc_mp3lame.c
+endif
+
+ifneq ($(findstring HAVE_QT_AAC 1, $(CONFIG)),)
+SRCCLI += audio/encoders/enc_qtaac.c
+endif
+
+ifneq ($(findstring HAVE_FAAC 1, $(CONFIG)),)
+SRCCLI += audio/encoders/enc_faac.c
+endif
+
+ifneq ($(findstring HAVE_AMRWB_3GPP 1, $(CONFIG)),)
+SRCCLI += audio/encoders/enc_amrwb_3gpp.c
+endif
+
 ifneq ($(findstring HAVE_LSMASH 1, $(CONFIG)),)
 SRCCLI += output/mp4_lsmash.c
+endif
+
+ifneq ($(findstring HAVE_AVI_OUTPUT 1, $(CONFIG)),)
+SRCCLI += output/avi.c
 endif
 
 # MMX/SSE optims
@@ -244,10 +289,10 @@ SRC2 = $(SRCS) $(SRCCLI)
 # These should cover most of the important codepaths
 OPT0 = --crf 30 -b1 -m1 -r1 --me dia --no-cabac --direct temporal --ssim --no-weightb
 OPT1 = --crf 16 -b2 -m3 -r3 --me hex --no-8x8dct --direct spatial --no-dct-decimate -t0  --slice-max-mbs 50
-OPT2 = --crf 26 -b4 -m5 -r2 --me hex --cqm jvt --nr 100 --psnr --no-mixed-refs --b-adapt 2 --slice-max-size 1500
-OPT3 = --crf 18 -b3 -m9 -r5 --me umh -t1 -A all --b-pyramid normal --direct auto --no-fast-pskip --no-mbtree
-OPT4 = --crf 22 -b3 -m7 -r4 --me esa -t2 -A all --psy-rd 1.0:1.0 --slices 4
-OPT5 = --frames 50 --crf 24 -b3 -m10 -r3 --me tesa -t2
+OPT2 = --crf 26 -b4 -m5 -r2 --me hex --cqm jvt --nr 100 --psnr --no-mixed-refs --b-adapt 2 --slice-max-size 1500 --aq3-mode 1
+OPT3 = --crf 18 -b3 -m9 -r5 --me umh -t1 -A all --b-pyramid normal --direct auto --no-fast-pskip --no-mbtree --open-gop --aq3-mode 2
+OPT4 = --crf 22 -b3 -m7 -r4 --me esa -t2 -A all --psy-rd 1.0:1.0 --slices 4 --fgo 8 --fade-compensate 0.5 --aq2-strength 0.5 --aq3-mode 3
+OPT5 = --crf 17 -b3 -m10 -r4 --me tesa -t2 --aq-mode 3 --b-pyramid strict --aq2-strength 1.0 --aq3-mode 4 --slices 4 --open-gop --bluray-compat --weightp 3
 OPT6 = --frames 50 -q0 -m9 -r2 --me hex -Aall
 OPT7 = --frames 50 -q0 -m2 -r1 --me hex --no-cabac
 

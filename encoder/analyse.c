@@ -324,7 +324,7 @@ int x264_analyse_init_costs( x264_t *h )
     for( int i = 1; i <= 2*4*2048; i++ )
         logs[i] = log2f( i+1 ) * 2.0f + 1.718f;
 
-    for( int qp = X264_MIN( h->param.rc.i_qp_min, QP_MAX_SPEC ); qp <= h->param.rc.i_qp_max; qp++ )
+    for( int qp = X264_MIN( h->param.rc.i_qp_min[h->sh.i_type], QP_MAX_SPEC ); qp <= h->param.rc.i_qp_max[h->sh.i_type]; qp++ )
         if( init_costs( h, logs, qp ) )
             goto fail;
 
@@ -1138,7 +1138,7 @@ static void x264_intra_rd( x264_t *h, x264_mb_analysis_t *a, int i_satd_thresh )
     else
         a->i_satd_i4x4 = COST_MAX;
 
-    if( a->i_satd_i8x8 < i_satd_thresh )
+    if( a->i_satd_i8x8 < i_satd_thresh || ( h->param.analyse.i_fgo && a->i_satd_i8x8 < COST_MAX ) )
     {
         h->mb.i_type = I_8x8;
         x264_analyse_update_cache( h, a );
@@ -2765,7 +2765,7 @@ static void x264_mb_analyse_b_rd( x264_t *h, x264_mb_analysis_t *a, int i_satd_i
     //FIXME not all the update_cache calls are needed
     h->mb.i_partition = D_16x16;
     /* L0 */
-    if( a->l0.me16x16.cost < thresh && a->l0.i_rd16x16 == COST_MAX )
+    if( (a->l0.me16x16.cost < thresh || h->param.analyse.i_fgo) && a->l0.i_rd16x16 == COST_MAX )
     {
         h->mb.i_type = B_L0_L0;
         x264_analyse_update_cache( h, a );
@@ -2773,7 +2773,7 @@ static void x264_mb_analyse_b_rd( x264_t *h, x264_mb_analysis_t *a, int i_satd_i
     }
 
     /* L1 */
-    if( a->l1.me16x16.cost < thresh && a->l1.i_rd16x16 == COST_MAX )
+    if( (a->l1.me16x16.cost < thresh || h->param.analyse.i_fgo) && a->l1.i_rd16x16 == COST_MAX )
     {
         h->mb.i_type = B_L1_L1;
         x264_analyse_update_cache( h, a );
@@ -2971,7 +2971,7 @@ static inline void x264_mb_analyse_qp_rd( x264_t *h, x264_mb_analysis_t *a )
         {
             if( !origcbp )
             {
-                h->mb.i_qp = X264_MAX( h->mb.i_qp - threshold - 1, SPEC_QP( h->param.rc.i_qp_min ) );
+                h->mb.i_qp = X264_MAX( h->mb.i_qp - threshold - 1, SPEC_QP( h->param.rc.i_qp_min[h->sh.i_type] ) );
                 h->mb.i_chroma_qp = h->chroma_qp_table[h->mb.i_qp];
                 already_checked_cost = x264_rd_cost_mb( h, a->i_lambda2 );
                 if( !h->mb.cbp[h->mb.i_mb_xy] )
@@ -2988,7 +2988,7 @@ static inline void x264_mb_analyse_qp_rd( x264_t *h, x264_mb_analysis_t *a )
         }
 
         h->mb.i_qp += direction;
-        while( h->mb.i_qp >= h->param.rc.i_qp_min && h->mb.i_qp <= SPEC_QP( h->param.rc.i_qp_max ) )
+        while( h->mb.i_qp >= h->param.rc.i_qp_min[h->sh.i_type] && h->mb.i_qp <= SPEC_QP( h->param.rc.i_qp_max[h->sh.i_type] ) )
         {
             if( h->mb.i_last_qp == h->mb.i_qp )
                 last_qp_tried = 1;
@@ -3089,7 +3089,7 @@ intra_analysis:
         {
             if( !h->param.analyse.b_psy )
             {
-                x264_mb_analyse_init_qp( h, &analysis, X264_MAX( h->mb.i_qp - h->mb.ip_offset, h->param.rc.i_qp_min ) );
+                x264_mb_analyse_init_qp( h, &analysis, X264_MAX( h->mb.i_qp - h->mb.ip_offset, h->param.rc.i_qp_min[h->sh.i_type] ) );
                 goto intra_analysis;
             }
         }
@@ -3332,7 +3332,8 @@ skip_analysis:
 
             if( analysis.i_mbrd )
             {
-                x264_mb_analyse_p_rd( h, &analysis, X264_MIN(i_satd_inter, i_satd_intra) );
+                x264_mb_analyse_p_rd( h, &analysis,
+                    h->param.analyse.i_fgo ? i_satd_inter : X264_MIN(i_satd_inter, i_satd_intra) );
                 i_type = P_L0;
                 i_partition = D_16x16;
                 i_cost = analysis.l0.i_rd16x16;
@@ -3367,7 +3368,7 @@ skip_analysis:
                     h->mc.copy[PIXEL_8x8]  ( h->mb.pic.p_fenc[1], FENC_STRIDE, h->mb.pic.p_fdec[1], FDEC_STRIDE, height );
                     h->mc.copy[PIXEL_8x8]  ( h->mb.pic.p_fenc[2], FENC_STRIDE, h->mb.pic.p_fdec[2], FDEC_STRIDE, height );
                 }
-                x264_mb_analyse_init_qp( h, &analysis, X264_MAX( h->mb.i_qp - h->mb.ip_offset, h->param.rc.i_qp_min ) );
+                x264_mb_analyse_init_qp( h, &analysis, X264_MAX( h->mb.i_qp - h->mb.ip_offset, h->param.rc.i_qp_min[h->sh.i_type] ) );
                 goto intra_analysis;
             }
 

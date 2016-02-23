@@ -69,7 +69,7 @@ static void x264_lowres_context_init( x264_t *h, x264_mb_analysis_t *a )
 /* makes a non-h264 weight (i.e. fix7), into an h264 weight */
 static void x264_weight_get_h264( int weight_nonh264, int offset, x264_weight_t *w )
 {
-    w->i_offset = offset;
+    w->i_offset = x264_clip3( offset, -128, 127 );
     w->i_denom = 7;
     w->i_scale = weight_nonh264;
     while( w->i_denom > 0 && (w->i_scale > 127) )
@@ -288,15 +288,430 @@ static NOINLINE unsigned int x264_weight_cost_chroma444( x264_t *h, x264_frame_t
     return cost;
 }
 
+// FIXME: Why the * 2 in refcosts
+#define DISTANCE( cost, c, i_mb, refindex )\
+{\
+    x264_weight_t w_temp;\
+    SET_WEIGHT( w_temp, 1, c[0] >> (7-denom), denom, c[1] );\
+    w_temp.weightfn[8>>2]( buf, 8, &ref_plane[offsets[i_mb]], i_stride, &w_temp, 8 );\
+    cost = h->pixf.mbcmp[PIXEL_8x8]( buf, 8, &fenc_plane[offsets[i_mb]], i_stride );\
+    if ( refcosts != NULL )\
+        cost += refcosts[ ( refindex + 1 ) * 2 ];\
+}
+
+static void kmeans_weight_h264_centroids( const int num_dups, int centroids[X264_DUPS_MAX][2], int *denom_out )
+{
+    int denom = 7;
+
+    // First find the denominator we need to get the largest scale to less than 127:
+    for( int i = 0; i < num_dups; i++ )
+    {
+        int shift = 7;
+        int scale = centroids[i][0];
+        while( shift > 0 && scale > 127 )
+        {
+            shift--;
+            scale >>= 1;
+        }
+        denom = X264_MIN( denom, shift );
+    }
+
+    // Scale all the weights appropriately
+    for( int i = 0; i < num_dups; i++ )
+    {
+        centroids[i][0] >>= (7-denom);
+        centroids[i][0] <<= (7-denom);
+    }
+
+    // Find the smallest denominator that keeps the resolution
+    denom = 0;
+    for( int i = 0; i < num_dups; i++ )
+    {
+        int shift = 7;
+        int scale = centroids[i][0];
+        while( shift > 0 && !(scale & 1) )
+        {
+            shift--;
+            scale >>= 1;
+        }
+        denom = X264_MAX( denom, shift );
+    }
+
+    *denom_out = denom;
+}
+
+static int x264_kmeans_search( x264_t *h, const x264_weight_t *weights, pixel *ref_plane, pixel *fenc_plane, int *offsets,
+                               int i_stride, uint16_t *refcosts, uint16_t *intra_costs, int num_mbs, int num_dups, int centroids[X264_DUPS_MAX][2], int *bestdenom )
+{
+    assert( num_dups <= X264_DUPS_MAX );
+
+    int bestcentroids[X264_DUPS_MAX][2];
+    int denom;
+    int score = 0, bestscore = INT_MAX;
+
+    int timesincebest = 0;
+
+    int count[X264_DUPS_MAX];     // Number of members a certain cluster/centroid has
+    int bestcount[X264_DUPS_MAX];
+
+    memset( count, 0, sizeof(count) );
+    memset( bestcount, 0, sizeof(bestcount) );
+
+    ALIGNED_ARRAY_16( pixel, buf, [8*8] );
+
+    // Initialize list of membership
+    int *kmean_mb = malloc( num_mbs * sizeof(int) );
+
+    assert( num_mbs > num_dups );
+
+    // Find the initial centroids
+    for( int i = 0; i < num_dups; i++ )
+    {
+        int b = rand() % num_mbs;
+
+        centroids[i][0] = weights[b].i_scale;
+        centroids[i][1] = weights[b].i_offset;
+
+        // Check if current values are already in the centroids list
+        for( int j = 0; j < i; j++ )
+            if ( !memcmp( &centroids[i], &centroids[j], sizeof(bestcentroids[i]) ) )
+            {
+                i--; // Try again
+                break; //FIXME: May or may not need this "break", I don't think it changes anything
+            }
+    }
+
+    kmeans_weight_h264_centroids( num_dups, centroids, &denom );
+
+    // Loop until convergence
+    int loop_count = 0; // Just to keep track of how long it takes
+    while( 1 )
+    {
+        score = 0;
+
+        // Assign each mb to closest center
+        for( int i = 0; i < num_mbs; i++ )
+        {
+            int mindistance = INT_MAX;
+            for( int j = 0; j < num_dups; j++ )
+            {
+                int distance = 0;
+                DISTANCE( distance, centroids[j], i, j );
+                if ( distance < mindistance )
+                {
+                    kmean_mb[i] = j;
+                    mindistance = distance;
+                }
+                if ( intra_costs[i] < mindistance )
+                {
+                    mindistance = intra_costs[i];
+                    kmean_mb[i] = -1;
+                }
+            }
+            score += mindistance;
+        }
+
+        // Get the cluster size of each cluster
+        memset( &count[0], 0, sizeof(count) );
+        for( int i = 0; i < num_mbs; i++ )
+            count[ kmean_mb[i] ] += 1;
+
+        // Remove clusters with few members (< 2%)
+        int mincount = num_mbs / 50;
+        for( int i = 0; i < num_dups; i++ )
+        {
+            if( count[i] < mincount )
+            {
+                centroids[i][0] = -1;
+                count[i] = 0;
+            }
+        }
+
+        /* Add cost of weights in the slice header. */
+        int lambda = x264_lambda_tab[X264_LOOKAHEAD_QP];
+
+        int numslices;
+        if( h->param.i_slice_count )
+            numslices = h->param.i_slice_count;
+        else if( h->param.i_slice_max_mbs )
+            numslices = (h->mb.i_mb_width * h->mb.i_mb_height + h->param.i_slice_max_mbs-1) / h->param.i_slice_max_mbs;
+        else
+            numslices = 1;
+        /* FIXME: find a way to account for --slice-max-size?*/
+
+        int tmp_cost = 0;
+        int tmp_refindex = 0;
+
+        tmp_cost += bs_size_ue( denom );
+        for( int i = 0; i < num_dups; i++ )
+            if( centroids[i][0] != -1 )
+            {
+                // Use the actual scale to calculate the cost
+                tmp_cost += bs_size_se( centroids[i][0] >> (7-denom) );
+                tmp_cost += bs_size_se( centroids[i][1] );
+
+                // FIXME: No clue where in the spec these numbers are
+                if( tmp_refindex == 1 )
+                    tmp_cost += 4;
+                else if( tmp_refindex <= 3 )
+                    tmp_cost += 10;
+                else
+                    tmp_cost += 14;
+
+                tmp_refindex++;
+            }
+
+        score += lambda * numslices * tmp_cost;
+
+        //If these are the best so far then keep them
+        if( score < bestscore )
+        {
+            //select sort new centroids in order of count
+            for( int i = 0; i < num_dups; i++ )
+            {
+                int new_count = count[i];
+                int new_index = i;
+                for( int j = i + 1; j < num_dups; j++ )
+                    COPY2_IF_GT(new_count,count[j],new_index,j);
+
+                if( new_index != i )
+                {
+                    XCHG( int, centroids[new_index][0], centroids[i][0] );
+                    XCHG( int, centroids[new_index][1], centroids[i][1] );
+                    XCHG( int, count[new_index], count[i] );
+
+                    // Switch the number in each macroblock as well
+                    for( int m = 0; m < num_mbs; m++ )
+                    {
+                        if( kmean_mb[m] == i )
+                           kmean_mb[m] = new_index;
+                        else if( kmean_mb[m] == new_index )
+                            kmean_mb[m] = i;
+                    }
+                }
+            }
+
+            int z; // Amount of nonzero weights
+            for( z = 0; z < num_dups; z++ )
+                if ( count[z] == 0 || centroids[z][0] == -1 )
+                    break;
+
+            kmeans_weight_h264_centroids( z, centroids, &denom );
+
+            memcpy( bestcentroids, centroids, sizeof(bestcentroids) );
+            memcpy( bestcount, count, sizeof(bestcount) );
+            *bestdenom = denom;
+            bestscore = score;
+            timesincebest = 0;
+        }
+        else
+            timesincebest++;
+
+        // Update the centroids
+        for( int i = 0; i < num_dups; i++ )
+        {
+            if( count[i] == 0 )
+                continue; // Update later
+
+            int tempcount = 0;
+            int sum_scale  = 0;
+            int sum_offset = 0;
+
+            for( int j = 0; j < num_mbs; j++ )
+            {
+                if ( kmean_mb[j] == i )
+                {
+                    tempcount++;
+                    sum_scale  += weights[j].i_scale;
+                    sum_offset += weights[j].i_offset;
+                }
+            }
+
+            //FIXME: copy-pasta from dylan; Round up for count[i] > 1, and down for count[i] == 1?
+            centroids[i][0] = (sum_scale + count[i]/2) / count[i];
+            centroids[i][1] = (sum_offset + count[i]/2) / count[i];
+        }
+
+        // Remove Duplicates
+        for( int i = 0; i < num_dups; i++ )
+            for( int j = 0; j < i; j++ )
+                if( !memcmp( centroids[i], centroids[j], sizeof(centroids[i]) ) )
+                    centroids[i][0] = -1;
+
+
+        // Convergence criterium is an unchanged set of centroids (including useless ones)
+        // Never is this the reason for stopping though (timesincebest is)
+        if( !memcmp( bestcentroids, centroids, sizeof(bestcentroids) ) ||
+            timesincebest > 3 )
+            break;
+
+        // For empty clusters set centroid to mean of non-empty clusters (and just added ones)
+        for( int i = 0; i < num_dups; i++ )
+        {
+            if( centroids[i][0] != -1 )
+                continue;
+
+            int num_clusters = 0;
+            int sum_scale  = 0;
+            int sum_offset = 0;
+
+            // I think the centroid average part in dylan's code did not do what it was supposed to do
+            for( int j = 0; j < num_dups; j++ )
+            {
+                if( centroids[j][0] != -1 )
+                {
+                    num_clusters++;
+                    sum_scale  += centroids[j][0];
+                    sum_offset += centroids[j][1];
+                }
+            }
+
+            // FIXME: This gives not very optimal new guesses I think, especially in the case of
+            // offsets, which will sometimes all be estimated around zero. Maybe always go for the
+            // "else" part.
+            if ( 0 )
+            {
+                centroids[i][0] = ( sum_scale + num_clusters/2 ) / num_clusters;
+                centroids[i][1] = ( sum_offset + num_clusters/2 ) / num_clusters;
+            }
+            else
+            {
+                int j = rand() % num_mbs;
+                centroids[i][0] = weights[j].i_scale;
+                centroids[i][0] = weights[j].i_offset;
+
+                /* Duplicate centroid checking is not really necessary here, but
+                 * it will waste one loop cycle to try again with a different value. */
+            }
+        }
+
+        // Maybe we inserted new weights, so check again for the denominator
+        kmeans_weight_h264_centroids( num_dups, centroids, &denom );
+
+        // Woop-ty-woop, another loop
+        loop_count++;
+    }
+
+    // Clean up a bit
+    for( int i = 0; i < X264_DUPS_MAX; i++ )
+        if( bestcount[i] == 0 )
+        {
+            bestcentroids[i][0] = -1;
+            bestcentroids[i][1] = 0;
+        }
+
+    memcpy( centroids, bestcentroids, sizeof(bestcentroids) );
+    free( kmean_mb );
+
+    return bestscore;
+}
+
+#define MEAN8(a,m) \
+    ALIGNED_16( pixel a[8] ) = {m, m, m, m, m, m, m, m};
+
+static void x264_weights_kmeans( x264_t *h, x264_frame_t *fenc, pixel *mcbuf, uint16_t *refcosts, int origscore )
+{
+    int i_stride = fenc->i_stride_lowres;
+    int i_lines = fenc->i_lines_lowres;
+    int i_width = fenc->i_width_lowres;
+    pixel *fenc_plane = fenc->lowres[0];
+    ALIGNED_16( static pixel flat[8] ) = {0};
+    int pixoff = 0;
+    int i_mb = 0;
+
+    // Upper estimate of the amount of macroblocks
+    int num_mbs_guess = (i_lines + 7)/8 * (i_width + 7)/8;
+    int *offsets = malloc( num_mbs_guess * sizeof(int) );
+
+    x264_weight_t *weights = malloc( num_mbs_guess * sizeof(x264_weight_t) );
+
+    for( int y = 0; y < i_lines; y += 8, pixoff = y*i_stride )
+        for( int x = 0; x < i_width; x += 8, i_mb++, pixoff += 8)
+        {
+            offsets[i_mb] = pixoff;
+
+            int fenc_mean = (h->pixf.sad_aligned[PIXEL_8x8]( &fenc_plane[pixoff], i_stride, flat, 0 ) + 31) >> 6  / (1 << (BIT_DEPTH - 8));
+            int ref_mean  = (h->pixf.sad_aligned[PIXEL_8x8]( &mcbuf[pixoff], i_stride, flat, 0 ) + 31) >> 6  / (1 << (BIT_DEPTH - 8));
+            MEAN8( fenc_m8, fenc_mean );
+            MEAN8( ref_m8, ref_mean );
+            int fenc_ssd = h->pixf.ssd[PIXEL_8x8]( &fenc_plane[pixoff], i_stride, fenc_m8, 0, 0 );
+            int ref_ssd  = h->pixf.ssd[PIXEL_8x8]( &mcbuf[pixoff], i_stride, ref_m8, 0, 0 );
+
+            x264_emms();
+            float fenc_var = fenc_ssd + !ref_ssd;
+            float ref_var  = ref_ssd + !ref_ssd;
+            float guess_scale = sqrtf( fenc_var / ref_var );
+
+            x264_weight_t *weight = &weights[i_mb];
+            x264_weight_get_h264( round( guess_scale * 128 ), 0, weight );
+            // And scale back to not confuse kmeans
+            weight->i_scale = weight->i_scale << (7 - weight->i_denom);
+            weight->i_denom = 7;
+            weight->i_offset = fenc_mean - (float)ref_mean * weight->i_scale / (1 << weight->i_denom) + 0.5f;
+            // FIXME: What to do with the huge offsets? Try more brute-force?
+            weight->i_offset = x264_clip3( weight->i_offset, -128, 127 );
+        }
+
+    int centroids[X264_DUPS_MAX][2]; // [n_clusters][scale/offset]
+    int denom = 7;
+
+    // First check the amount of unique weights, and adjust num_dups accordingly
+    int unique_weights = 0;
+    for( int b = 0; b < i_mb && unique_weights < X264_DUPS_MAX; b++ )
+    {
+        int found = 0;
+        for( int j = 0; j < unique_weights; j++ )
+            if( centroids[j][0] == weights[b].i_scale &&
+                centroids[j][1] == weights[b].i_offset )
+            {
+                found = 1;
+                break;
+            }
+
+        if( !found )
+        {
+            centroids[unique_weights][0] = weights[b].i_scale;
+            centroids[unique_weights][1] = weights[b].i_offset;
+            unique_weights++;
+        }
+    }
+
+    memset( centroids, 0, sizeof(centroids) );
+
+    int score = x264_kmeans_search( h, weights, mcbuf, fenc_plane, offsets, i_stride, refcosts, fenc->i_intra_cost, i_mb, unique_weights, centroids, &denom );
+
+    // Copy the centroids to actual weights:
+    for( int i = 0; i < X264_DUPS_MAX; i++ )
+    {
+        if( centroids[i][0] == -1 || (float)score / origscore > 0.998f )
+        {
+            SET_WEIGHT( fenc->weight[i][0], 0, 1, 0, 0 );
+        }
+        else
+        {
+            SET_WEIGHT( fenc->weight[i][0], 1, centroids[i][0] >> (7-denom), denom, centroids[i][1] );
+        }
+    }
+
+    free( weights );
+    free( offsets );
+}
+
 void x264_weights_analyse( x264_t *h, x264_frame_t *fenc, x264_frame_t *ref, int b_lookahead )
 {
     int i_delta_index = fenc->i_frame - ref->i_frame - 1;
     /* epsilon is chosen to require at least a numerator of 127 (with denominator = 128) */
     const float epsilon = 1.f/128.f;
     x264_weight_t *weights = fenc->weight[0];
-    SET_WEIGHT( weights[0], 0, 1, 0, 0 );
-    SET_WEIGHT( weights[1], 0, 1, 0, 0 );
-    SET_WEIGHT( weights[2], 0, 1, 0, 0 );
+
+    int b_kmeans = (h->param.analyse.i_weighted_pred == X264_WEIGHTP_KMEAN);
+    // FIXME: Not sure if we have to do this seeing as they are set later anyway
+    for( int i = 0; i <= (X264_DUPS_MAX-1) * b_kmeans; i++ )
+    {
+        SET_WEIGHT( fenc->weight[i][0], 0, 1, 0, 0 );
+        SET_WEIGHT( fenc->weight[i][1], 0, 1, 0, 0 );
+        SET_WEIGHT( fenc->weight[i][2], 0, 1, 0, 0 );
+    }
     int chroma_initted = 0;
     float guess_scale[3];
     float fenc_mean[3];
@@ -356,6 +771,7 @@ void x264_weights_analyse( x264_t *h, x264_frame_t *fenc, x264_frame_t *ref, int
         minoff = 0;
 
         pixel *mcbuf;
+        uint16_t *refcosts = NULL;
         if( !plane )
         {
             if( !fenc->b_intra_calculated )
@@ -363,6 +779,7 @@ void x264_weights_analyse( x264_t *h, x264_frame_t *fenc, x264_frame_t *ref, int
                 x264_mb_analysis_t a;
                 x264_lowres_context_init( h, &a );
                 x264_slicetype_frame_cost( h, &a, &fenc, 0, 0, 0, 0 );
+                refcosts = a.p_cost_ref[0];
             }
             mcbuf = x264_weight_cost_init_luma( h, fenc, ref, h->mb.p_weight_buf[0] );
             origscore = minscore = x264_weight_cost_luma( h, fenc, mcbuf, NULL );
@@ -387,6 +804,12 @@ void x264_weights_analyse( x264_t *h, x264_frame_t *fenc, x264_frame_t *ref, int
 
         if( !minscore )
             continue;
+
+        if ( !plane && b_kmeans )
+        {
+            x264_weights_kmeans( h, fenc, mcbuf, refcosts, origscore );
+            continue;
+        }
 
         /* Picked somewhat arbitrarily */
         static const uint8_t weight_check_distance[][2] =
@@ -457,7 +880,7 @@ void x264_weights_analyse( x264_t *h, x264_frame_t *fenc, x264_frame_t *ref, int
         else
             SET_WEIGHT( weights[plane], 1, minscale, mindenom, minoff );
 
-        if( h->param.analyse.i_weighted_pred == X264_WEIGHTP_FAKE && weights[0].weightfn && !plane )
+        if( weights[0].weightfn && !plane )
             fenc->f_weighted_cost_delta[i_delta_index] = (float)minscore / origscore;
     }
 
@@ -485,16 +908,22 @@ void x264_weights_analyse( x264_t *h, x264_frame_t *fenc, x264_frame_t *ref, int
         if( weights[i].weightfn )
             h->mc.weight_cache( h, &weights[i] );
 
-    if( weights[0].weightfn && b_lookahead )
+    if( b_lookahead )
     {
         //scale lowres in lookahead for slicetype_frame_cost
-        pixel *src = ref->buffer_lowres[0];
-        pixel *dst = h->mb.p_weight_buf[0];
+
         int width = ref->i_width_lowres + PADH*2;
         int height = ref->i_lines_lowres + PADV*2;
-        x264_weight_scale_plane( h, dst, ref->i_stride_lowres, src, ref->i_stride_lowres,
-                                 width, height, &weights[0] );
-        fenc->weighted[0] = h->mb.p_weight_buf[0] + PADH + ref->i_stride_lowres * PADV;
+
+        for( int i = 0; i <= (X264_DUPS_MAX-1) * b_kmeans && fenc->weight[i][0].weightfn; i++ )
+        {
+            pixel *src = ref->buffer_lowres[0];
+            pixel *dst = h->mb.p_weight_buf[i];
+
+            x264_weight_scale_plane( h, dst, ref->i_stride_lowres, src, ref->i_stride_lowres,
+                                     width, height, &fenc->weight[i][0] );
+            fenc->weighted[i] = h->mb.p_weight_buf[i] + PADH + ref->i_stride_lowres * PADV;
+        }
     }
 }
 
@@ -1035,7 +1464,7 @@ static void x264_macroblock_tree_finish( x264_t *h, x264_frame_t *frame, float a
     int fps_factor = round( CLIP_DURATION(average_duration) / CLIP_DURATION(frame->f_duration) * 256 / MBTREE_PRECISION );
     float weightdelta = 0.0;
     if( ref0_distance && frame->f_weighted_cost_delta[ref0_distance-1] > 0 )
-        weightdelta = (1.0 - frame->f_weighted_cost_delta[ref0_distance-1]);
+        weightdelta = (1.0 - frame->f_weighted_cost_delta[ref0_distance-1]) * 10.0f * h->param.rc.f_fade_compensate;
 
     /* Allow the strength to be adjusted via qcompress, since the two
      * concepts are very similar. */

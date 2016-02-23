@@ -27,6 +27,8 @@ Configuration options:
   --enable-static          build static library
   --disable-opencl         disable OpenCL features
   --disable-gpl            disable GPL-only features
+  --enable-nonfree         allow use of nonfree code, the resulting
+                           binaries will be unredistributable
   --disable-thread         disable multithreaded encoding
   --disable-win32thread    disable win32threads (windows only)
   --disable-interlaced     disable interlaced encoding support
@@ -38,6 +40,7 @@ Advanced options:
   --enable-debug           add -g
   --enable-gprof           add -pg
   --enable-strip           add -s
+  --enable-lto             enables LTO (requires gcc compiled with --ebable-lto)
   --enable-pic             build position-independent code
 
 Cross-compilation:
@@ -50,8 +53,16 @@ External library support:
   --disable-swscale        disable swscale support
   --disable-lavf           disable libavformat support
   --disable-ffms           disable ffmpegsource support
+  --disable-avi-output     disables avi output (using libavformat)
   --disable-gpac           disable gpac support
   --disable-lsmash         disable lsmash support
+  --disable-audio          disable audio support
+  --disable-qtaac          disable QuickTime AAC support
+  --disable-faac           disable faac support
+  --disable-mp3            disable lame support
+  --disable-lavc           disable lavc support
+  --qtsdk=QTSDKROOT        root of QuickTime SDK for QuickTime AAC support
+                           (x86 windows only and requires --enable-nonfree)
 
 EOF
 exit 1
@@ -337,11 +348,14 @@ shared="no"
 static="no"
 avs="auto"
 lavf="auto"
+lavr="auto"
 ffms="auto"
+avi_output="auto"
 gpac="auto"
 lsmash="auto"
 mp4="no"
 gpl="yes"
+audio="auto"
 thread="auto"
 swscale="auto"
 asm="auto"
@@ -349,12 +363,21 @@ interlaced="yes"
 debug="no"
 gprof="no"
 strip="no"
+lto="no"
 pic="no"
 bit_depth="8"
 chroma_format="all"
 compiler="GNU"
 compiler_style="GNU"
 opencl="yes"
+
+nonfree="no"
+
+audio_mp3="auto"
+audio_qtaac="auto"
+audio_faac="auto"
+audio_lavc="auto"
+audio_amrwb="no"
 
 CFLAGS="$CFLAGS -Wall -I. -I\$(SRCPATH)"
 LDFLAGS="$LDFLAGS"
@@ -373,7 +396,9 @@ NL="
 # list of all preprocessor HAVE values we can define
 CONFIG_HAVE="MALLOC_H ALTIVEC ALTIVEC_H MMX ARMV6 ARMV6T2 NEON BEOSTHREAD POSIXTHREAD WIN32THREAD THREAD LOG2F SWSCALE \
              LAVF FFMS GPAC AVS GPL VECTOREXT INTERLACED CPU_COUNT OPENCL THP LSMASH X86_INLINE_ASM AS_FUNC INTEL_DISPATCHER \
-             MSA MMAP"
+             AVI_OUTPUT MSA MMAP"
+# list of all preprocessor HAVE values we can define for audio stuff
+CONFIG_AUDIO_HAVE="AUDIO LAME QT_AAC FAAC AMRWB_3GPP NONFREE"
 
 # parse options
 
@@ -422,6 +447,9 @@ for opt do
         --disable-ffms)
             ffms="no"
             ;;
+        --disable-avi-output)
+            avi_output="no"
+            ;;
         --disable-gpac)
             gpac="no"
             ;;
@@ -430,6 +458,21 @@ for opt do
             ;;
         --disable-gpl)
             gpl="no"
+            ;;
+        --disable-audio)
+            audio="no"
+            ;;
+        --disable-qtaac)
+            audio_qtaac="no"
+            ;;
+        --disable-faac)
+            audio_faac="no"
+            ;;
+        --disable-mp3)
+            audio_mp3="no"
+            ;;
+        --disable-lavc)
+            audio_lavc="no"
             ;;
         --extra-asflags=*)
             ASFLAGS="$ASFLAGS $optarg"
@@ -460,6 +503,10 @@ for opt do
             LDFLAGS="$LDFLAGS -pg"
             gprof="yes"
             ;;
+        --enable-lto)
+            CFLAGS="$CFLAGS -flto"
+            lto="yes"
+            ;;
         --enable-strip)
             strip="yes"
             ;;
@@ -478,6 +525,16 @@ for opt do
         --sysroot=*)
             CFLAGS="$CFLAGS --sysroot=$optarg"
             LDFLAGS="$LDFLAGS --sysroot=$optarg"
+            ;;
+        --qtsdk=*)
+            CFLAGS="$CFLAGS -I$optarg/CIncludes"
+            LDFLAGSCLI="$LDFLAGSCLI $optarg/Libraries/QTMLClient.lib"
+            ;;
+        --enable-nonfree)
+            nonfree="yes"
+            ;;
+        --enable-amrwb-3gpp)
+            audio_amrwb="auto"
             ;;
         --bit-depth=*)
             bit_depth="$optarg"
@@ -1015,6 +1072,26 @@ if [ "$lavf" = "auto" ] ; then
     fi
 fi
 
+if [ "$lavr" = "auto" ] ; then
+    lavr="no"
+    if [ "$lavf" = "yes" ] ; then
+        if ${cross_prefix}pkg-config --exists libavresample 2>/dev/null; then
+            LAVR_LIBS="$LAVR_LIBS $(${cross_prefix}pkg-config --libs libavresample)"
+            LAVR_CFLAGS="$LAVR_CFLAGS $(${cross_prefix}pkg-config --cflags libavresample)"
+        fi
+        if [ -z "$LAVR_LIBS" -a -z "$LAVR_CFLAGS" ]; then
+            LAVR_LIBS="-lavresample"
+            for lib in -lpostproc -lavformat -lavcodec -lavcore -lswscale -lavutil -lm -lz -lbz2 $libpthread -lavifil32; do
+                cc_check "" $lib && LAVR_LIBS="$LAVR_LIBS $lib"
+            done
+        fi
+        if cc_check libavresample/avresample.h "$LAVR_CFLAGS $LAVR_LIBS" "avresample_open(0);" ; then
+            lavr="yes"
+            LAVF_LIBS="-lavresample $LAVF_LIBS"
+        fi
+    fi
+fi
+
 if [ "$ffms" = "auto" ] ; then
     ffms_major="2"; ffms_minor="16"; ffms_micro="2"; ffms_bump="0"
     ffms="no"
@@ -1058,6 +1135,106 @@ if [ "$swscale" = "yes" ]; then
         define HAVE_FFMS
     fi
 fi
+
+if [ "$audio" = "auto" ]; then
+    audio="yes"
+    audio_encs="raw"
+    if [ "$audio_mp3" = "auto" ]; then
+        if cc_check lame/lame.h "-lmp3lame" "get_lame_version();"; then
+            audio_mp3="yes"
+            audio_encs="$audio_encs, mp3"
+        else
+            audio_mp3="no"
+        fi
+    fi
+    if [ "$audio_qtaac" = "auto" -a "$SYS" = "WINDOWS" ]; then
+        if cc_check QTML.h "-D__CFTREE__" "InitializeQTML(0);"; then
+            if [ "$nonfree" = "yes" ]; then
+                audio_qtaac="yes"
+                audio_encs="$audio_encs, qtaac"
+            else
+                echo "Warning: Found usable QuickTime SDK but --enable-nonfree isn't specified."
+                echo "Warning: If you want to compile qtaac support in, configure with --enable-nonfree."
+                echo "Warning: As a consequence, the resulting binaries will be unredistributable."
+                echo ""
+                audio_qtaac="no"
+            fi
+        else
+            audio_qtaac="no"
+        fi
+    fi
+    if [ "$audio_faac" = "auto" ]; then
+        if cc_check faac.h "-lfaac" "faacEncGetVersion( (void *)0, (void *)0 );"; then
+            if [ "$nonfree" = "yes" ]; then
+                audio_faac="yes"
+                audio_encs="$audio_encs, faac"
+            else
+                echo "Warning: Found usable FAAC library but --enable-nonfree isn't specified."
+                echo "Warning: If you want to compile libfaac support in, configure with --enable-nonfree."
+                echo "Warning: As a consequence, the resulting binaries will be unredistributable."
+                echo ""
+                audio_faac="no"
+            fi
+        else
+            audio_faac="no"
+        fi
+    fi
+    if [ "$audio_amrwb" = "auto" ]; then
+        if echo $LDFLAGSCLI | grep -q 'opencore-amrwb' ; then
+            echo "Warning: 3gpp's AMR-WB is not compatible with opencore-amrwb (and lavc with it)."
+            echo "Warning: If any error occures and you still want 3gpp's AMR-WB support,"
+            echo "Warning: rebuild libavcodec without opencore-amrwb support."
+            echo ""
+        fi
+        if cc_check enc_if.h "-lamrwb_3gpp_enc" "(void)E_IF_init();"; then
+            if [ "$nonfree" = "yes" ]; then
+                audio_amrwb="yes"
+                audio_encs="$audio_encs, amrwb_3gpp"
+            else
+                echo "Warning: Found available 3gpp's AMR-WB but --enable-nonfree isn't specified."
+                echo ""
+                audio_amrwb="no"
+            fi
+        else
+            audio_amrwb="no"
+        fi
+    fi
+    if [ "$audio_lavc" = "auto" -a "$lavf" = "yes" -a "$lavr" = "yes" ]; then
+        audio_lavc="yes"
+        audio_encs="$audio_encs, lavc"
+    else
+        audio_lavc="no"
+    fi
+fi
+
+# set appropriate conditions and CFLAGS/LDFLAGS for all audio stuff
+if [ "$audio" = "yes" ]; then
+    define HAVE_AUDIO
+    if [ "$audio_mp3" = "yes" ]; then
+        define HAVE_LAME
+        LDFLAGSCLI="-lmp3lame $LDFLAGSCLI"
+    fi
+    if [ "$audio_qtaac" = "yes" ]; then
+        define HAVE_QT_AAC
+        CFLAGS="$CFLAGS -D__CFTREE__ -Wno-multichar -Wno-unknown-pragmas"
+    fi
+    if [ "$audio_faac" = "yes" ]; then
+        define HAVE_FAAC
+        LDFLAGSCLI="-lfaac $LDFLAGSCLI"
+    fi
+    if [ "$audio_amrwb" = "auto" ]; then
+        define HAVE_AMRWB_3GPP
+        LDFLAGSCLI="-lamrwb_3gpp_enc $LDFLAGSCLI"
+    fi
+    if [ "$nonfree" = "yes" ]; then
+        define HAVE_NONFREE
+    fi
+fi
+
+#define undefined vars as 0 for audio stuff
+for var in $CONFIG_AUDIO_HAVE; do
+    grep -q "HAVE_$var 1" config.h || define HAVE_$var 0
+done
 
 if [ "$lsmash" = "auto" ] ; then
     lsmash="no"
@@ -1104,6 +1281,32 @@ elif [ "$gpac" = "yes" ] ; then
     LDFLAGSCLI="$GPAC_LIBS $LDFLAGSCLI"
 fi
 
+if [ "$avi_output" = "auto" ] ; then
+    avi_output="no"
+    if ${cross_prefix}pkg-config --exists libavformat 2>$DEVNULL; then
+        AVI_LIBS="$AVI_LIBS $(${cross_prefix}pkg-config --libs libavformat)"
+        AVI_CFLAGS="$AVI_CFLAGS $(${cross_prefix}pkg-config --cflags libavformat)"
+    fi
+    if [ -z "$AVI_LIBS" -a -z "$AVI_CFLAGS" ]; then
+        AVI_LIBS="-lavformat"
+        for lib in -lavcodec -lavutil -lm -lz -lbz2 $libpthread -lavifil32; do
+            cc_check "" $lib && AVI_LIBS="$AVI_LIBS $lib"
+        done
+    fi
+    AVI_LIBS="-L. $AVI_LIBS"
+    if cc_check libavformat/avformat.h "$AVI_CFLAGS $AVI_LIBS" ; then
+        if cc_check libavformat/avformat.h "$AVI_CFLAGS $AVI_LIBS" 'av_register_all(); av_guess_format( "avi", NULL, NULL );' ; then
+            avi_output="yes"
+        fi
+    fi
+fi
+
+if [ "$avi_output" = "yes" ]; then
+    LDFLAGSCLI="$AVI_LIBS $LDFLAGSCLI"
+    [ -n "$AVI_CFLAGS" ] && CFLAGS="$CFLAGS $AVI_CFLAGS"
+    define HAVE_AVI_OUTPUT
+fi
+
 if [ "$avs" = "auto" ] ; then
     avs="no"
     # cygwin can use avisynth if it can use LoadLibrary
@@ -1141,12 +1344,22 @@ fi
 
 if [ "$debug" = "yes" ]; then
     CFLAGS="-O1 -g $CFLAGS"
+elif cc_check '' -Ofast ; then
+    CFLAGS="-Ofast -ffast-math $CFLAGS"
 else
     CFLAGS="-O3 -ffast-math $CFLAGS"
 fi
 
 if cc_check '' -fno-tree-vectorize ; then
     CFLAGS="$CFLAGS -fno-tree-vectorize"
+fi
+
+if [ "$lto" = "yes" ]; then
+    if cc_check '' -flto ; then
+        LDFLAGSCLI="$LDFLAGSCLI -fwhole-program"
+    else
+        lto = "no"
+    fi
 fi
 
 if [ $SYS = WINDOWS -a $ARCH = X86 -a $compiler = GNU ] ; then
@@ -1227,8 +1440,6 @@ cat > x264_config.h << EOF
 #define X264_INTERLACED    $x264_interlaced
 #define X264_CHROMA_FORMAT $config_chroma_format
 EOF
-
-${SRCPATH}/version.sh >> x264_config.h
 
 if [ "$cli_libx264" = "system" ] ; then
     if [ "$shared" = "yes" ]; then
@@ -1391,6 +1602,8 @@ fi
 echo "LDFLAGSCLI = $LDFLAGSCLI" >> config.mak
 echo "CLI_LIBX264 = $CLI_LIBX264" >> config.mak
 
+${SRCPATH}/version.sh "${SRCPATH}" >> x264_config.h
+
 cat > x264.pc << EOF
 prefix=$prefix
 exec_prefix=$exec_prefix
@@ -1405,8 +1618,8 @@ Libs.private: $([ "$shared" = "yes" ] && echo $libpthread $libm $libdl)
 Cflags: -I$includedir
 EOF
 
-filters="crop select_every"
-gpl_filters=""
+filters="crop select_every hqdn3d pad vflip subtitles"
+gpl_filters="yadif"
 [ $swscale = yes ] && filters="resize $filters"
 [ $gpl = yes ] && filters="$filters $gpl_filters"
 
@@ -1423,14 +1636,18 @@ interlaced:    $interlaced
 avs:           $avs
 lavf:          $lavf
 ffms:          $ffms
+avi output:    $avi_output
+audio:         $audio$(test $audio = "yes" && echo " ($audio_encs)")
 mp4:           $mp4
 gpl:           $gpl
+nonfree:       $nonfree
 thread:        $thread
 opencl:        $opencl
 filters:       $filters
 debug:         $debug
 gprof:         $gprof
 strip:         $strip
+LTO:           $lto
 PIC:           $pic
 bit depth:     $bit_depth
 chroma format: $chroma_format

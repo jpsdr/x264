@@ -31,6 +31,7 @@
 // SSD assumes all args aligned
 // other cmp functions assume first arg aligned
 typedef int  (*x264_pixel_cmp_t) ( pixel *, intptr_t, pixel *, intptr_t );
+typedef int  (*x264_pixel_cmp_weight_t) ( pixel *, intptr_t, pixel *, intptr_t, intptr_t );
 typedef void (*x264_pixel_cmp_x3_t) ( pixel *, pixel *, pixel *, pixel *, intptr_t, int[3] );
 typedef void (*x264_pixel_cmp_x4_t) ( pixel *, pixel *, pixel *, pixel *, pixel *, intptr_t, int[4] );
 
@@ -78,10 +79,12 @@ static const uint8_t x264_luma2chroma_pixel[4][7] =
 typedef struct
 {
     x264_pixel_cmp_t  sad[8];
-    x264_pixel_cmp_t  ssd[8];
+    x264_pixel_cmp_weight_t ssd[8];
+    x264_pixel_cmp_weight_t nssd[8];
     x264_pixel_cmp_t satd[8];
     x264_pixel_cmp_t ssim[7];
     x264_pixel_cmp_t sa8d[4];
+    x264_pixel_cmp_weight_t rdcmp[8]; /* either ssd or nsse for mode decision */
     x264_pixel_cmp_t mbcmp[8]; /* either satd or sad for subpel refine and mode decision */
     x264_pixel_cmp_t mbcmp_unaligned[8]; /* unaligned mbcmp for subpel */
     x264_pixel_cmp_t fpelcmp[8]; /* either satd or sad for fullpel motion search */
@@ -114,6 +117,8 @@ typedef struct
      * may round width up to a multiple of 16. */
     int (*ads[7])( int enc_dc[4], uint16_t *sums, int delta,
                    uint16_t *cost_mvx, int16_t *mvs, int width, int thresh );
+
+    int (*pixel_count[4])( pixel *pix, intptr_t i_pix, pixel threshold );
 
     /* calculate satd or sad of V, H, and DC modes. */
     void (*intra_mbcmp_x3_16x16)( pixel *fenc, pixel *fdec, int res[3] );

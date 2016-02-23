@@ -42,17 +42,27 @@ static void register_vid_filter( cli_vid_filter_t *new_filter )
     register_vid_filter( &name##_filter );\
 }
 
+#define REGISTER_GPL_VFILTER( name ) \
+    if( HAVE_GPL ) REGISTER_VFILTER( name )
+
 void x264_register_vid_filters( void )
 {
     extern cli_vid_filter_t source_filter;
     first_filter = &source_filter;
     REGISTER_VFILTER( cache );
-    REGISTER_VFILTER( crop );
+    REGISTER_VFILTER( depth );
     REGISTER_VFILTER( fix_vfr_pts );
+
+    REGISTER_VFILTER( hqdn3d );
+    REGISTER_VFILTER( crop );
+    REGISTER_VFILTER( pad );
     REGISTER_VFILTER( resize );
     REGISTER_VFILTER( select_every );
-    REGISTER_VFILTER( depth );
-#if HAVE_GPL
+    REGISTER_VFILTER( vflip );
+    REGISTER_GPL_VFILTER( yadif );
+
+#ifdef _WIN32
+    REGISTER_VFILTER( subtitles );
 #endif
 }
 

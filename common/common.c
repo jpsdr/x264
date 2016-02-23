@@ -41,6 +41,7 @@ const int x264_bit_depth = BIT_DEPTH;
 const int x264_chroma_format = X264_CHROMA_FORMAT;
 
 static void x264_log_default( void *, int, const char *, va_list );
+static void x264_log_file( char *, int, const char *, va_list );
 
 /****************************************************************************
  * x264_param_default:
@@ -73,6 +74,9 @@ void x264_param_default( x264_param_t *param )
     param->i_fps_num       = 25;
     param->i_fps_den       = 1;
     param->i_level_idc     = -1;
+    param->b_level_force   = 0;
+    param->i_profile       = 0;
+    param->b_profile_force = 0;
     param->i_slice_max_size = 0;
     param->i_slice_max_mbs = 0;
     param->i_slice_count = 0;
@@ -104,13 +108,50 @@ void x264_param_default( x264_param_t *param )
     param->rc.f_vbv_buffer_init = 0.9;
     param->rc.i_qp_constant = 23 + QP_BD_OFFSET;
     param->rc.f_rf_constant = 23;
-    param->rc.i_qp_min = 0;
-    param->rc.i_qp_max = QP_MAX;
+    param->rc.i_qp_min_min           =
+    param->rc.i_qp_min[SLICE_TYPE_I] =
+    param->rc.i_qp_min[SLICE_TYPE_P] =
+    param->rc.i_qp_min[SLICE_TYPE_B] = 0;
+    param->rc.i_qp_max_max           =
+    param->rc.i_qp_max[SLICE_TYPE_I] =
+    param->rc.i_qp_max[SLICE_TYPE_P] =
+    param->rc.i_qp_max[SLICE_TYPE_B] = QP_MAX;
     param->rc.i_qp_step = 4;
     param->rc.f_ip_factor = 1.4;
     param->rc.f_pb_factor = 1.3;
     param->rc.i_aq_mode = X264_AQ_VARIANCE;
     param->rc.f_aq_strength = 1.0;
+    param->rc.f_aq_sensitivity = 10;
+    param->rc.f_aq_ifactor = 1.0;
+    param->rc.f_aq_pfactor = 1.0;
+    param->rc.f_aq_bfactor = 1.0;
+    param->rc.b_aq2 = 0;
+    param->rc.f_aq2_strength = 0.0;
+    param->rc.f_aq2_sensitivity = 15.0;
+    param->rc.f_aq2_ifactor = 1.0;
+    param->rc.f_aq2_pfactor = 1.0;
+    param->rc.f_aq2_bfactor = 1.0;
+    param->rc.i_aq3_mode = X264_AQ_NONE;
+    param->rc.f_aq3_strength = 0.5;
+    param->rc.f_aq3_strengths[0][0] = 0;
+    param->rc.f_aq3_strengths[0][1] = 0;
+    param->rc.f_aq3_strengths[0][2] = 0;
+    param->rc.f_aq3_strengths[0][3] = 0;
+    param->rc.f_aq3_strengths[1][0] = 0;
+    param->rc.f_aq3_strengths[1][1] = 0;
+    param->rc.f_aq3_strengths[1][2] = 0;
+    param->rc.f_aq3_strengths[1][3] = 0;
+    param->rc.f_aq3_sensitivity = 10;
+    param->rc.f_aq3_ifactor[0] = 1.0;
+    param->rc.f_aq3_ifactor[1] = 1.0;
+    param->rc.f_aq3_pfactor[0] = 1.0;
+    param->rc.f_aq3_pfactor[1] = 1.0;
+    param->rc.f_aq3_bfactor[0] = 1.0;
+    param->rc.f_aq3_bfactor[1] = 1.0;
+    param->rc.b_aq3_boundary = 0;
+    param->rc.i_aq3_boundary[0] = 192;
+    param->rc.i_aq3_boundary[1] = 64;
+    param->rc.i_aq3_boundary[2] = 24;
     param->rc.i_lookahead = 40;
 
     param->rc.b_stat_write = 0;
@@ -127,6 +168,8 @@ void x264_param_default( x264_param_t *param )
     param->pf_log = x264_log_default;
     param->p_log_private = NULL;
     param->i_log_level = X264_LOG_INFO;
+    param->b_stylish = 0;
+    param->i_log_file_level = X264_LOG_INFO;
 
     /* */
     param->analyse.intra = X264_ANALYSE_I4x4 | X264_ANALYSE_I8x8;
@@ -137,6 +180,7 @@ void x264_param_default( x264_param_t *param )
     param->analyse.f_psy_rd = 1.0;
     param->analyse.b_psy = 1;
     param->analyse.f_psy_trellis = 0;
+    param->analyse.i_fgo = 0;
     param->analyse.i_me_range = 16;
     param->analyse.i_subpel_refine = 7;
     param->analyse.b_mixed_references = 1;
@@ -178,6 +222,12 @@ void x264_param_default( x264_param_t *param )
     param->i_opencl_device = 0;
     param->opencl_device_id = NULL;
     param->psz_clbin_file = NULL;
+
+    param->filters.b_sub = 0;
+
+    param->i_opts_write = X264_OPTS_FULL;
+    for( int i = 0; i < X264_OPTS_MAX; i++ )
+        param->psz_opts[i] = NULL;
 }
 
 static int x264_param_apply_preset( x264_param_t *param, const char *preset )
@@ -433,6 +483,7 @@ void x264_param_apply_fastfirstpass( x264_param_t *param )
         param->analyse.i_subpel_refine = X264_MIN( 2, param->analyse.i_subpel_refine );
         param->analyse.i_trellis = 0;
         param->analyse.b_fast_pskip = 1;
+        param->analyse.i_fgo = 0;
     }
 }
 
@@ -453,17 +504,213 @@ static int profile_string_to_int( const char *str )
     return -1;
 }
 
-int x264_param_apply_profile( x264_param_t *param, const char *profile )
+static int x264_generic_device_check( x264_param_t *param, const char *device, int device_mask )
 {
-    if( !profile )
-        return 0;
+    if( (device_mask & X264_DEVICE_LEVEL_FREE) == 0 )
+        param->b_level_force = 1;
 
-    int p = profile_string_to_int( profile );
+    if( (device_mask & X264_DEVICE_LOSSLESS) == 0 && (
+          (param->rc.i_rc_method == X264_RC_CQP && param->rc.i_qp_constant <= 0) ||
+          (param->rc.i_rc_method == X264_RC_CRF && (int)(param->rc.f_rf_constant + QP_BD_OFFSET) <= 0)
+        )
+      )
+    {
+        x264_log( NULL, X264_LOG_ERROR, "%s doesn't support lossless\n", device );
+        return -1;
+    }
+
+    if( (device_mask & X264_DEVICE_444) == 0 && (param->i_csp & X264_CSP_MASK) >= X264_CSP_I444 )
+    {
+        x264_log( NULL, X264_LOG_ERROR, "%s doesn't support 4:4:4\n", device );
+        return -1;
+    }
+
+    if( (device_mask & X264_DEVICE_422) == 0 && (param->i_csp & X264_CSP_MASK) >= X264_CSP_I422 )
+    {
+        x264_log( NULL, X264_LOG_ERROR, "%s doesn't support 4:2:2\n", device );
+        return -1;
+    }
+
+    if( (device_mask & X264_DEVICE_HIGH_DEPTH) == 0 && BIT_DEPTH > 8 )
+    {
+        x264_log( NULL, X264_LOG_ERROR, "%s doesn't support a bit depth of %d\n", device, BIT_DEPTH );
+        return -1;
+    }
+
+    return 0;
+}
+
+static int x264_param_restrict_device( x264_param_t *param, int i_profile, const char *device )
+{
+    char *tmp = x264_malloc( strlen( device ) + 1 );
+    if( !tmp )
+        return -1;
+    tmp = strcpy( tmp, device );
+    char *s = strtok( tmp, ",./-+" );
+    while( s )
+    {
+        if( !strcasecmp( s, "dxva" ) )
+        {
+            if( x264_generic_device_check( param, s, X264_DEVICE_DXVA ) < 0 )
+            {
+                x264_free( tmp );
+                return -1;
+            }
+            param->i_level_idc = ( param->i_level_idc < 0 ) ?
+                                 X264_LEVEL_IDC_DXVA : X264_MIN( param->i_level_idc, X264_LEVEL_IDC_DXVA );
+
+            i_profile = i_profile ? X264_MIN( i_profile, PROFILE_HIGH ) : PROFILE_HIGH;
+        }
+        else if( !strcasecmp( s, "bluray" ) || !strcasecmp( s, "blu-ray" ) )
+        {
+            if( x264_generic_device_check( param, s, X264_DEVICE_BLURAY ) < 0 )
+            {
+                x264_free( tmp );
+                return -1;
+            }
+            param->i_level_idc = ( param->i_level_idc < 0 ) ?
+                                 X264_LEVEL_IDC_BLURAY : X264_MIN( param->i_level_idc, X264_LEVEL_IDC_BLURAY );
+            param->b_bluray_compat = 1;
+
+            param->rc.i_vbv_max_bitrate = ( param->rc.i_vbv_max_bitrate <= 0 ) ?
+                                          X264_VBV_MAXRATE_BLURAY : X264_MIN( param->rc.i_vbv_max_bitrate, X264_VBV_MAXRATE_BLURAY );
+
+            param->rc.i_vbv_buffer_size = ( param->rc.i_vbv_buffer_size <= 0 ) ?
+                                          X264_VBV_BUFSIZE_BLURAY : X264_MIN( param->rc.i_vbv_buffer_size, X264_VBV_BUFSIZE_BLURAY );
+
+            i_profile = i_profile ? X264_MIN( i_profile, PROFILE_HIGH ) : PROFILE_HIGH;
+        }
+        else if( !strcasecmp( s, "psp" ) )
+        {
+            if( x264_generic_device_check( param, s, X264_DEVICE_PSP ) < 0 )
+            {
+                x264_free( tmp );
+                return -1;
+            }
+            param->i_frame_reference = X264_MIN( param->i_frame_reference, 3 );
+            param->i_bframe_pyramid = X264_B_PYRAMID_NONE;
+            param->analyse.i_weighted_pred = X264_MIN( param->analyse.i_weighted_pred, X264_WEIGHTP_SIMPLE );
+
+            param->rc.i_vbv_max_bitrate = ( param->rc.i_vbv_max_bitrate <= 0 ) ?
+                                          X264_VBV_MAXRATE_PSP : X264_MIN( param->rc.i_vbv_max_bitrate, X264_VBV_MAXRATE_PSP );
+
+            param->rc.i_vbv_buffer_size = ( param->rc.i_vbv_buffer_size <= 0 ) ?
+                                          X264_VBV_BUFSIZE_PSP : X264_MIN( param->rc.i_vbv_buffer_size, X264_VBV_BUFSIZE_PSP );
+
+            i_profile = i_profile ? X264_MIN( i_profile, PROFILE_MAIN ) : PROFILE_MAIN;
+        }
+        else if( !strcasecmp( s, "psv" ) )
+        {
+            if( x264_generic_device_check( param, s, X264_DEVICE_PSV ) < 0 )
+            {
+                x264_free( tmp );
+                return -1;
+            }
+
+            i_profile = i_profile ? X264_MIN( i_profile, PROFILE_HIGH ) : PROFILE_HIGH;
+        }
+        else if( !strcasecmp( s, "ps3" ) )
+        {
+            if( x264_generic_device_check( param, s, X264_DEVICE_PS3 ) < 0 )
+            {
+                x264_free( tmp );
+                return -1;
+            }
+            param->i_level_idc = ( param->i_level_idc < 0 ) ?
+                                 X264_LEVEL_IDC_PS3 : X264_MIN( param->i_level_idc, X264_LEVEL_IDC_PS3 );
+
+            param->rc.i_vbv_max_bitrate = ( param->rc.i_vbv_max_bitrate <= 0 ) ?
+                                          X264_VBV_MAXRATE_PS3 : X264_MIN( param->rc.i_vbv_max_bitrate, X264_VBV_MAXRATE_PS3 );
+
+            param->rc.i_vbv_buffer_size = ( param->rc.i_vbv_buffer_size <= 0 ) ?
+                                          X264_VBV_BUFSIZE_PS3 : X264_MIN( param->rc.i_vbv_buffer_size, X264_VBV_BUFSIZE_PS3 );
+
+            i_profile = i_profile ? X264_MIN( i_profile, PROFILE_HIGH ) : PROFILE_HIGH;
+        }
+        else if( !strcasecmp( s, "xbox" ) || !strcasecmp( s, "xbox360" ) )
+        {
+            if( x264_generic_device_check( param, s, X264_DEVICE_XBOX ) < 0 )
+            {
+                x264_free( tmp );
+                return -1;
+            }
+            param->i_level_idc = ( param->i_level_idc < 0 ) ?
+                                 X264_LEVEL_IDC_XBOX : X264_MIN( param->i_level_idc, X264_LEVEL_IDC_XBOX );
+
+            param->rc.i_vbv_max_bitrate = ( param->rc.i_vbv_max_bitrate <= 0 ) ?
+                                          X264_VBV_MAXRATE_XBOX : X264_MIN( param->rc.i_vbv_max_bitrate, X264_VBV_MAXRATE_XBOX );
+
+            param->rc.i_vbv_buffer_size = ( param->rc.i_vbv_buffer_size <= 0 ) ?
+                                          X264_VBV_BUFSIZE_XBOX : X264_MIN( param->rc.i_vbv_buffer_size, X264_VBV_BUFSIZE_XBOX );
+
+            i_profile = i_profile ? X264_MIN( i_profile, PROFILE_HIGH ) : PROFILE_HIGH;
+        }
+        else if( !strcasecmp( s, "iphone" ) || !strcasecmp( s, "ipad" ) )
+        {
+            if( x264_generic_device_check( param, s, X264_DEVICE_IPHONE ) < 0 )
+            {
+                x264_free( tmp );
+                return -1;
+            }
+            param->i_level_idc = ( param->i_level_idc < 0 ) ?
+                                 X264_LEVEL_IDC_IPHONE : X264_MIN( param->i_level_idc, X264_LEVEL_IDC_IPHONE );
+            /* Fix me: I have no data about iPhone/iPad's vbv restriction */
+
+            i_profile = i_profile ? X264_MIN( i_profile, PROFILE_HIGH ) : PROFILE_HIGH;
+        }
+        else if( !strcasecmp( s, "generic" ) )
+        {
+            if( x264_generic_device_check( param, s, X264_DEVICE_GENERIC ) < 0 )
+            {
+                x264_free( tmp );
+                return -1;
+            }
+            param->i_frame_reference = X264_MIN( param->i_frame_reference, 3 );
+            param->i_bframe = X264_MIN( param->i_bframe, 3 );
+            param->i_bframe_pyramid = X264_B_PYRAMID_NONE;
+            param->analyse.i_weighted_pred = X264_MIN( param->analyse.i_weighted_pred, X264_WEIGHTP_SIMPLE );
+            param->i_level_idc = ( param->i_level_idc < 0 ) ?
+                                 X264_LEVEL_IDC_GENERIC : X264_MIN( param->i_level_idc, X264_LEVEL_IDC_GENERIC );
+
+            param->rc.i_vbv_max_bitrate = ( param->rc.i_vbv_max_bitrate <= 0 ) ?
+                                          X264_VBV_MAXRATE_GENERIC : X264_MIN( param->rc.i_vbv_max_bitrate, X264_VBV_MAXRATE_GENERIC );
+
+            param->rc.i_vbv_buffer_size = ( param->rc.i_vbv_buffer_size <= 0 ) ?
+                                          X264_VBV_BUFSIZE_GENERIC : X264_MIN( param->rc.i_vbv_buffer_size, X264_VBV_BUFSIZE_GENERIC );
+
+            i_profile = i_profile ? X264_MIN( i_profile, PROFILE_MAIN ) : PROFILE_MAIN;
+        }
+        else
+        {
+            x264_log( NULL, X264_LOG_ERROR, "invalid device: %s\n", s );
+            x264_free( tmp );
+            return -1;
+        }
+        s = strtok( NULL, ",./-+" );
+    }
+    x264_free( tmp );
+    return i_profile;
+}
+
+int x264_param_apply_profile( x264_param_t *param, const char *profile, const char *device )
+{
+    int p = param->i_profile;
+
+    if( profile )
+        p = profile_string_to_int( profile );
     if( p < 0 )
     {
         x264_log( NULL, X264_LOG_ERROR, "invalid profile: %s\n", profile );
         return -1;
     }
+
+    if( device )
+        p = x264_param_restrict_device( param, p, device );
+    if( !p )                     // auto profile
+        return 0;
+    if( p < 0 )
+        return -1;
+
     if( p < PROFILE_HIGH444_PREDICTIVE && ((param->rc.i_rc_method == X264_RC_CQP && param->rc.i_qp_constant <= 0) ||
         (param->rc.i_rc_method == X264_RC_CRF && (int)(param->rc.f_rf_constant + QP_BD_OFFSET) <= 0)) )
     {
@@ -511,6 +758,7 @@ int x264_param_apply_profile( x264_param_t *param, const char *profile )
         param->i_cqm_preset = X264_CQM_FLAT;
         param->psz_cqm_file = NULL;
     }
+    param->i_profile = p;
     return 0;
 }
 
@@ -677,6 +925,10 @@ int x264_param_parse( x264_param_t *p, const char *name, const char *value )
         else
             p->i_level_idc = atoi(value);
     }
+    OPT("level-force")
+        p->b_level_force = atobool(value);
+    OPT("profile-force")
+        p->b_profile_force = atobool(value);
     OPT("bluray-compat")
         p->b_bluray_compat = atobool(value);
     OPT("avcintra-class")
@@ -887,6 +1139,13 @@ int x264_param_parse( x264_param_t *p, const char *name, const char *value )
     }
     OPT("log")
         p->i_log_level = atoi(value);
+    OPT("log-file")
+        p->psz_log_file = strdup(value);
+    OPT("log-file-level")
+        if( !parse_enum( value, x264_log_level_names, &p->i_log_file_level ) )
+            p->i_log_file_level += X264_LOG_NONE;
+        else
+            p->i_log_file_level = atoi(value);
     OPT("dump-yuv")
         p->psz_dump_yuv = strdup(value);
     OPT2("analyse", "partitions")
@@ -975,17 +1234,51 @@ int x264_param_parse( x264_param_t *p, const char *name, const char *value )
     OPT("rc-lookahead")
         p->rc.i_lookahead = atoi(value);
     OPT2("qpmin", "qp-min")
-        p->rc.i_qp_min = atoi(value);
+    {
+        if( 3 == sscanf( value, "%d:%d:%d", &p->rc.i_qp_min[SLICE_TYPE_I], &p->rc.i_qp_min[SLICE_TYPE_P], &p->rc.i_qp_min[SLICE_TYPE_B] ) ||
+            3 == sscanf( value, "%d,%d,%d", &p->rc.i_qp_min[SLICE_TYPE_I], &p->rc.i_qp_min[SLICE_TYPE_P], &p->rc.i_qp_min[SLICE_TYPE_B] ) )
+            p->rc.i_qp_min_min = X264_MIN3( p->rc.i_qp_min[SLICE_TYPE_I], p->rc.i_qp_min[SLICE_TYPE_P], p->rc.i_qp_min[SLICE_TYPE_B] );
+        else if( sscanf( value, "%d", &p->rc.i_qp_min_min ) )
+            p->rc.i_qp_min[SLICE_TYPE_I] = p->rc.i_qp_min[SLICE_TYPE_P] = p->rc.i_qp_min[SLICE_TYPE_B] = p->rc.i_qp_min_min;
+    }
     OPT2("qpmax", "qp-max")
-        p->rc.i_qp_max = atoi(value);
+    {
+        if( 3 == sscanf( value, "%d:%d:%d", &p->rc.i_qp_max[SLICE_TYPE_I], &p->rc.i_qp_max[SLICE_TYPE_P], &p->rc.i_qp_max[SLICE_TYPE_B] ) ||
+            3 == sscanf( value, "%d,%d,%d", &p->rc.i_qp_max[SLICE_TYPE_I], &p->rc.i_qp_max[SLICE_TYPE_P], &p->rc.i_qp_max[SLICE_TYPE_B] ) )
+            p->rc.i_qp_max_max = X264_MAX3( p->rc.i_qp_max[SLICE_TYPE_I], p->rc.i_qp_max[SLICE_TYPE_P], p->rc.i_qp_max[SLICE_TYPE_B] );
+        else if( sscanf( value, "%d", &p->rc.i_qp_max_max ) )
+            p->rc.i_qp_max[SLICE_TYPE_I] = p->rc.i_qp_max[SLICE_TYPE_P] = p->rc.i_qp_max[SLICE_TYPE_B] = p->rc.i_qp_max_max;
+    }
     OPT2("qpstep", "qp-step")
         p->rc.i_qp_step = atoi(value);
     OPT("ratetol")
         p->rc.f_rate_tolerance = !strncmp("inf", value, 3) ? 1e9 : atof(value);
     OPT("vbv-maxrate")
-        p->rc.i_vbv_max_bitrate = atoi(value);
+        if( !strcmp(value, "auto_high444") )
+            p->rc.i_vbv_max_bitrate = X264_VBV_MAXRATE_HIGH444;
+        else if( !strcmp(value, "auto_high422") )
+            p->rc.i_vbv_max_bitrate = X264_VBV_MAXRATE_HIGH422;
+        else if( !strcmp(value, "auto_high10") )
+            p->rc.i_vbv_max_bitrate = X264_VBV_MAXRATE_HIGH10;
+        else if( !strcmp(value, "auto_high") )
+            p->rc.i_vbv_max_bitrate = X264_VBV_MAXRATE_HIGH;
+        else if( !strcmp(value, "auto_main") )
+            p->rc.i_vbv_max_bitrate = X264_VBV_MAXRATE_MAIN;
+        else
+            p->rc.i_vbv_max_bitrate = atoi(value);
     OPT("vbv-bufsize")
-        p->rc.i_vbv_buffer_size = atoi(value);
+        if( !strcmp(value, "auto_high444") )
+            p->rc.i_vbv_buffer_size = X264_VBV_BUFSIZE_HIGH444;
+        else if( !strcmp(value, "auto_high422") )
+            p->rc.i_vbv_buffer_size = X264_VBV_BUFSIZE_HIGH422;
+        else if( !strcmp(value, "auto_high10") )
+            p->rc.i_vbv_buffer_size = X264_VBV_BUFSIZE_HIGH10;
+        else if( !strcmp(value, "auto_high") )
+            p->rc.i_vbv_buffer_size = X264_VBV_BUFSIZE_HIGH;
+        else if( !strcmp(value, "auto_main") )
+            p->rc.i_vbv_buffer_size = X264_VBV_BUFSIZE_MAIN;
+        else
+            p->rc.i_vbv_buffer_size = atoi(value);
     OPT("vbv-init")
         p->rc.f_vbv_buffer_init = atof(value);
     OPT2("ipratio", "ip-factor")
@@ -996,6 +1289,91 @@ int x264_param_parse( x264_param_t *p, const char *name, const char *value )
         p->rc.i_aq_mode = atoi(value);
     OPT("aq-strength")
         p->rc.f_aq_strength = atof(value);
+    OPT("aq-sensitivity")
+        p->rc.f_aq_sensitivity = atof(value);
+    OPT("aq-ifactor")
+        p->rc.f_aq_ifactor = atof(value);
+    OPT("aq-pfactor")
+        p->rc.f_aq_pfactor = atof(value);
+    OPT("aq-bfactor")
+        p->rc.f_aq_bfactor = atof(value);
+    OPT("aq2-strength")
+    {
+        p->rc.f_aq2_strength = atof(value);
+        p->rc.b_aq2 = 1;
+    }
+    OPT("aq2-sensitivity")
+        p->rc.f_aq2_sensitivity = atof(value);
+    OPT("aq2-ifactor")
+        p->rc.f_aq2_ifactor = atof(value);
+    OPT("aq2-pfactor")
+        p->rc.f_aq2_pfactor = atof(value);
+    OPT("aq2-bfactor")
+        p->rc.f_aq2_bfactor = atof(value);
+    OPT("aq3-mode")
+        p->rc.i_aq3_mode = atoi(value);
+    OPT("aq3-strength")
+    {
+		int i;
+		
+        if( 8 == sscanf( value, "%f:%f:%f:%f:%f:%f:%f:%f",
+                         &p->rc.f_aq3_strengths[0][0], &p->rc.f_aq3_strengths[1][0], &p->rc.f_aq3_strengths[0][1], &p->rc.f_aq3_strengths[1][1],
+                         &p->rc.f_aq3_strengths[0][2], &p->rc.f_aq3_strengths[1][2], &p->rc.f_aq3_strengths[0][3], &p->rc.f_aq3_strengths[1][3] ) ||
+            8 == sscanf( value, "%f,%f,%f,%f,%f,%f,%f,%f",
+                         &p->rc.f_aq3_strengths[0][0], &p->rc.f_aq3_strengths[1][0], &p->rc.f_aq3_strengths[0][1], &p->rc.f_aq3_strengths[1][1],
+                         &p->rc.f_aq3_strengths[0][2], &p->rc.f_aq3_strengths[1][2], &p->rc.f_aq3_strengths[0][3], &p->rc.f_aq3_strengths[1][3] ) )
+            p->rc.f_aq3_strength = 0.0;
+        else if( 2 == sscanf( value, "%f:%f", &p->rc.f_aq3_strengths[0][0], &p->rc.f_aq3_strengths[1][0] ) ||
+                 2 == sscanf( value, "%f,%f", &p->rc.f_aq3_strengths[0][0], &p->rc.f_aq3_strengths[1][0] ) )
+        {
+            p->rc.f_aq3_strength = 0.0;
+            for( i = 0; i < 2; i++ )
+                for( int j = 1; j < 4; j++ )
+                    p->rc.f_aq3_strengths[i][j] = p->rc.f_aq3_strengths[i][0];
+        }
+        else if( sscanf( value, "%f", &p->rc.f_aq3_strength ) )
+            for( i = 0; i < 2; i++ )
+                for( int j = 0; j < 4; j++ )
+                    p->rc.f_aq3_strengths[i][j] = p->rc.f_aq3_strength;
+    }
+    OPT("aq3-sensitivity")
+        p->rc.f_aq3_sensitivity = atof(value);
+    OPT("aq3-ifactor")
+        if( 2 == sscanf( value, "%f:%f", &p->rc.f_aq3_ifactor[0], &p->rc.f_aq3_ifactor[1] ) ||
+            2 == sscanf( value, "%f,%f", &p->rc.f_aq3_ifactor[0], &p->rc.f_aq3_ifactor[1] ) )
+        { }
+        else if( sscanf( value, "%f", &p->rc.f_aq3_ifactor[0] ) )
+            p->rc.f_aq3_ifactor[1] = p->rc.f_aq3_ifactor[0];
+        else
+            p->rc.f_aq3_ifactor[1] = p->rc.f_aq3_ifactor[0] = 1.0;
+    OPT("aq3-pfactor")
+        if( 2 == sscanf( value, "%f:%f", &p->rc.f_aq3_pfactor[0], &p->rc.f_aq3_pfactor[1] ) ||
+            2 == sscanf( value, "%f,%f", &p->rc.f_aq3_pfactor[0], &p->rc.f_aq3_pfactor[1] ) )
+        { }
+        else if( sscanf( value, "%f", &p->rc.f_aq3_pfactor[0] ) )
+            p->rc.f_aq3_pfactor[1] = p->rc.f_aq3_pfactor[0];
+        else
+            p->rc.f_aq3_pfactor[1] = p->rc.f_aq3_pfactor[0] = 1.0;
+    OPT("aq3-bfactor")
+        if( 2 == sscanf( value, "%f:%f", &p->rc.f_aq3_bfactor[0], &p->rc.f_aq3_bfactor[1] ) ||
+            2 == sscanf( value, "%f,%f", &p->rc.f_aq3_bfactor[0], &p->rc.f_aq3_bfactor[1] ) )
+        { }
+        else if( sscanf( value, "%f", &p->rc.f_aq3_bfactor[0] ) )
+            p->rc.f_aq3_bfactor[1] = p->rc.f_aq3_bfactor[0];
+        else
+            p->rc.f_aq3_bfactor[1] = p->rc.f_aq3_bfactor[0] = 1.0;
+    OPT("aq3-boundary")
+    {
+        if( 3 == sscanf( value, "%d:%d:%d", &p->rc.i_aq3_boundary[0], &p->rc.i_aq3_boundary[1], &p->rc.i_aq3_boundary[2] ) ||
+            3 == sscanf( value, "%d,%d,%d", &p->rc.i_aq3_boundary[0], &p->rc.i_aq3_boundary[1], &p->rc.i_aq3_boundary[2] ) )
+            p->rc.b_aq3_boundary = 1;
+        else
+            p->rc.i_aq3_boundary[0] = p->rc.i_aq3_boundary[1] = p->rc.i_aq3_boundary[2] = 0;
+    }
+    OPT("fgo")
+        p->analyse.i_fgo = atoi(value);
+    OPT("fade-compensate")
+        p->rc.f_fade_compensate = atof(value);
     OPT("pass")
     {
         int pass = x264_clip3( atoi(value), 0, 3 );
@@ -1028,6 +1406,36 @@ int x264_param_parse( x264_param_t *p, const char *name, const char *value )
         p->b_aud = atobool(value);
     OPT("sps-id")
         p->i_sps_id = atoi(value);
+    OPT("opts")
+    {
+#define OPTS_SET( psz_x, prefix, flag )                     \
+        if( !strncasecmp( value, prefix, strlen(prefix) ) ) \
+        {                                                   \
+            if( p->i_opts_write & flag )                    \
+            {                                               \
+                free(psz_x);                                \
+                psz_x = NULL;                               \
+            }                                               \
+            psz_x = strdup( value + strlen(prefix) );       \
+            p->i_opts_write |= flag;                        \
+        }
+        OPTS_SET(      p->psz_opts[0], "preinfo:" , X264_OPTS_PREINFO  )
+        else OPTS_SET( p->psz_opts[0], "0:"       , X264_OPTS_PREINFO  )
+        else OPTS_SET( p->psz_opts[1], "postinfo:", X264_OPTS_POSTINFO )
+        else OPTS_SET( p->psz_opts[1], "1:"       , X264_OPTS_POSTINFO )
+        else OPTS_SET( p->psz_opts[2], "preopt:"  , X264_OPTS_PREOPT   )
+        else OPTS_SET( p->psz_opts[2], "2:"       , X264_OPTS_PREOPT   )
+        else OPTS_SET( p->psz_opts[3], "postopt:" , X264_OPTS_POSTOPT  )
+        else OPTS_SET( p->psz_opts[3], "3:"       , X264_OPTS_POSTOPT  )
+        else
+        {
+            int flag = strlen(value) == 1 && isdigit(value[0]) ? atoi(value) : atobool(value);
+            b_error |= flag < X264_OPTS_NONE || flag > X264_OPTS_FULL;
+            p->i_opts_write &= ~X264_OPTS_FULL;    // clear basic flag bit
+            p->i_opts_write |= flag;               // write basic flag bit
+        }
+#undef OPTS_SET
+    }
     OPT("global-header")
         p->b_repeat_headers = !atobool(value);
     OPT("repeat-headers")
@@ -1086,6 +1494,44 @@ void x264_log( x264_t *h, int i_level, const char *psz_fmt, ... )
         else
             h->param.pf_log( h->param.p_log_private, i_level, psz_fmt, arg );
         va_end( arg );
+    }
+
+    if( h && h->param.psz_log_file && i_level <= h->param.i_log_file_level )
+    {
+        va_list arg;
+        va_start( arg, psz_fmt );
+        x264_log_file( h->param.psz_log_file, i_level, psz_fmt, arg );
+        va_end( arg );
+    }
+}
+
+static void x264_log_file( char *p_file_name, int i_level, const char *psz_fmt, va_list arg )
+{
+    char *psz_prefix;
+    switch( i_level )
+    {
+        case X264_LOG_ERROR:
+            psz_prefix = "error";
+            break;
+        case X264_LOG_WARNING:
+            psz_prefix = "warning";
+            break;
+        case X264_LOG_INFO:
+            psz_prefix = "info";
+            break;
+        case X264_LOG_DEBUG:
+            psz_prefix = "debug";
+            break;
+        default:
+            psz_prefix = "unknown";
+            break;
+    }
+    FILE *p_log_file = x264_fopen( p_file_name, "ab" );
+    if( p_log_file )
+    {
+        fprintf( p_log_file, "x264 [%s]: ", psz_prefix );
+        x264_vfprintf( p_log_file, psz_fmt, arg );
+        fclose( p_log_file );
     }
 }
 
@@ -1270,6 +1716,34 @@ REDUCE_FRACTION( x264_reduce_fraction  , uint32_t )
 REDUCE_FRACTION( x264_reduce_fraction64, uint64_t )
 
 /****************************************************************************
+ * x264_ntsc_fps:
+ ****************************************************************************/
+void x264_ntsc_fps( uint32_t *fps_num, uint32_t *fps_den )
+{
+    if( !*fps_num || !*fps_den )
+        return;
+
+#define X264_NTSC_TIMEBASE 1001
+    const double f_ntsc_mod6_quotient = (double) X264_NTSC_TIMEBASE / 6.;
+    const double f_fps                = (double) *fps_num / (double) *fps_den;
+    const double f_interval           = 1000. / f_fps;
+
+    const uint32_t i_nearest_ntsc_mod6_num = (uint32_t) ( f_ntsc_mod6_quotient / f_interval + 0.5 );
+    if( !i_nearest_ntsc_mod6_num )
+        return;
+    const double   f_nearest_ntsc_interval = f_ntsc_mod6_quotient / (double) i_nearest_ntsc_mod6_num;
+
+    if ( fabs ( f_interval - f_nearest_ntsc_interval ) < ( 1. / ( f_fps + 1. ) ) )    // error < ( 1 / fps + 1 )
+    {
+        *fps_num = i_nearest_ntsc_mod6_num * 6000;
+        *fps_den = X264_NTSC_TIMEBASE;
+    }
+#undef X264_NTSC_TIMEBASE
+
+    return;
+}
+
+/****************************************************************************
  * x264_slurp_file:
  ****************************************************************************/
 char *x264_slurp_file( const char *filename )
@@ -1343,7 +1817,10 @@ char *x264_param2string( x264_param_t *p, int b_res )
     s += sprintf( s, " subme=%d", p->analyse.i_subpel_refine );
     s += sprintf( s, " psy=%d", p->analyse.b_psy );
     if( p->analyse.b_psy )
+    {
+        s += sprintf( s, " fade_compensate=%.2f", p->rc.f_fade_compensate );
         s += sprintf( s, " psy_rd=%.2f:%.2f", p->analyse.f_psy_rd, p->analyse.f_psy_trellis );
+    }
     s += sprintf( s, " mixed_ref=%d", p->analyse.b_mixed_references );
     s += sprintf( s, " me_range=%d", p->analyse.i_me_range );
     s += sprintf( s, " chroma_me=%d", p->analyse.b_chroma_me );
@@ -1374,6 +1851,7 @@ char *x264_param2string( x264_param_t *p, int b_res )
         s += sprintf( s, " stitchable=%d", p->b_stitchable );
 
     s += sprintf( s, " constrained_intra=%d", p->b_constrained_intra );
+    s += sprintf( s, " fgo=%d", p->analyse.i_fgo );
 
     s += sprintf( s, " bframes=%d", p->i_bframe );
     if( p->i_bframe )
@@ -1400,12 +1878,15 @@ char *x264_param2string( x264_param_t *p, int b_res )
     if( p->rc.i_rc_method == X264_RC_ABR || p->rc.i_rc_method == X264_RC_CRF )
     {
         if( p->rc.i_rc_method == X264_RC_CRF )
-            s += sprintf( s, " crf=%.1f", p->rc.f_rf_constant );
+            s += sprintf( s, " crf=%.4f", p->rc.f_rf_constant );
         else
             s += sprintf( s, " bitrate=%d ratetol=%.1f",
                           p->rc.i_bitrate, p->rc.f_rate_tolerance );
-        s += sprintf( s, " qcomp=%.2f qpmin=%d qpmax=%d qpstep=%d",
-                      p->rc.f_qcompress, p->rc.i_qp_min, p->rc.i_qp_max, p->rc.i_qp_step );
+        s += sprintf( s, " qcomp=%.2f qpmin=%d:%d:%d qpmax=%d:%d:%d qpstep=%d",
+                      p->rc.f_qcompress,
+                      p->rc.i_qp_min[SLICE_TYPE_I], p->rc.i_qp_min[SLICE_TYPE_P], p->rc.i_qp_min[SLICE_TYPE_B],
+                      p->rc.i_qp_max[SLICE_TYPE_I], p->rc.i_qp_max[SLICE_TYPE_P], p->rc.i_qp_max[SLICE_TYPE_B],
+                      p->rc.i_qp_step );
         if( p->rc.b_stat_read )
             s += sprintf( s, " cplxblur=%.1f qblur=%.1f",
                           p->rc.f_complexity_blur, p->rc.f_qblur );
@@ -1435,7 +1916,34 @@ char *x264_param2string( x264_param_t *p, int b_res )
             s += sprintf( s, " pb_ratio=%.2f", p->rc.f_pb_factor );
         s += sprintf( s, " aq=%d", p->rc.i_aq_mode );
         if( p->rc.i_aq_mode )
+        {
             s += sprintf( s, ":%.2f", p->rc.f_aq_strength );
+            s += sprintf( s, " aq-sensitivity=%.2f", p->rc.f_aq_sensitivity );
+            s += sprintf( s, " aq-factor=%.2f:%.2f:%.2f", p->rc.f_aq_ifactor,
+                                                          p->rc.f_aq_pfactor,
+                                                          p->rc.f_aq_bfactor );
+        }
+        s += sprintf( s, " aq2=%d", p->rc.b_aq2 );
+        if( p->rc.b_aq2 )
+        {
+            s += sprintf( s, ":%.2f", p->rc.f_aq2_strength );
+            s += sprintf( s, " aq2-sensitivity=%.2f", p->rc.f_aq2_sensitivity );
+            s += sprintf( s, " aq2-factor=%.2f:%.2f:%.2f", p->rc.f_aq2_ifactor,
+                                                           p->rc.f_aq2_pfactor,
+                                                           p->rc.f_aq2_bfactor );
+        }
+        s += sprintf( s, " aq3=%d", p->rc.i_aq3_mode );
+        if( p->rc.i_aq3_mode )
+        {
+            s += sprintf( s, ":[%.2f:%.2f]:[%.2f:%.2f]:[%.2f:%.2f]:[%.2f:%.2f]",
+                          p->rc.f_aq3_strengths[0][0], p->rc.f_aq3_strengths[1][0], p->rc.f_aq3_strengths[0][1], p->rc.f_aq3_strengths[1][1],
+                          p->rc.f_aq3_strengths[0][2], p->rc.f_aq3_strengths[1][2], p->rc.f_aq3_strengths[0][3], p->rc.f_aq3_strengths[1][3] );
+            s += sprintf( s, " aq3-sensitivity=%.2f", p->rc.f_aq3_sensitivity );
+            s += sprintf( s, " aq3-factor=[%.2f:%.2f]:[%.2f:%.2f]:[%.2f:%.2f]", p->rc.f_aq3_ifactor[0], p->rc.f_aq3_ifactor[1],
+                                                                                p->rc.f_aq3_pfactor[0], p->rc.f_aq3_pfactor[1],
+                                                                                p->rc.f_aq3_bfactor[0], p->rc.f_aq3_bfactor[1] );
+            s += sprintf( s, " aq3-boundary=%d:%d:%d", p->rc.i_aq3_boundary[0], p->rc.i_aq3_boundary[1], p->rc.i_aq3_boundary[2] );
+        }
         if( p->rc.psz_zones )
             s += sprintf( s, " zones=%s", p->rc.psz_zones );
         else if( p->rc.i_zones )

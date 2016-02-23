@@ -41,6 +41,10 @@
 #endif
 #define FAIL_IF_ERROR( cond, ... ) FAIL_IF_ERR( cond, "avs", __VA_ARGS__ )
 
+#if HAVE_AUDIO
+#include "audio/audio.h"
+#endif
+
 #define AVSC_NO_DECLSPEC
 #undef EXTERN_C
 #if USE_AVXSYNTH
@@ -97,6 +101,10 @@ typedef struct
         AVSC_DECLARE_FUNC( avs_release_video_frame );
         AVSC_DECLARE_FUNC( avs_take_clip );
     } func;
+#if HAVE_AUDIO
+    char *filename;
+    int has_audio;
+#endif
 } avs_hnd_t;
 
 /* load the library and functions we require from it */
@@ -130,13 +138,23 @@ static void avs_build_filter_sequence( char *filename_ext, const char *filter[AV
 #if USE_AVXSYNTH
     const char *all_purpose[] = { "FFVideoSource", 0 };
 #else
-    const char *all_purpose[] = { "FFmpegSource2", "DSS2", "DirectShowSource", 0 };
-    if( !strcasecmp( filename_ext, "avi" ) )
+    const char *all_purpose[] = { "LWLibavVideoSource", "FFmpegSource2", "DSS2", "DirectShowSource", 0 };
+    if( !strcasecmp( filename_ext, "vpy" ) )
+        filter[i++] = "VSImport";
+    if( !strcasecmp( filename_ext, "avi" ) || !strcasecmp( filename_ext, "vpy" ) )
+    {
         filter[i++] = "AVISource";
+        filter[i++] = "HBVFWSource";
+    }
+    if( !strcasecmp( filename_ext, "mp4" ) || !strcasecmp( filename_ext, "mov" ) || !strcasecmp( filename_ext, "qt" ) ||
+        !strcasecmp( filename_ext, "3gp" ) || !strcasecmp( filename_ext, "3g2" ) )
+        filter[i++] = "LSMASHVideoSource";
     if( !strcasecmp( filename_ext, "d2v" ) )
         filter[i++] = "MPEG2Source";
     if( !strcasecmp( filename_ext, "dga" ) )
         filter[i++] = "AVCSource";
+    if( !strcasecmp( filename_ext, "dgi" ) )
+        filter[i++] = "DGSource";
 #endif
     for( int j = 0; all_purpose[j] && i < AVS_MAX_SEQUENCE; j++ )
         filter[i++] = all_purpose[j];
@@ -196,8 +214,8 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
 
 #ifdef _WIN32
     /* Avisynth doesn't support Unicode filenames. */
-    char ansi_filename[MAX_PATH];
-    FAIL_IF_ERROR( !x264_ansi_filename( psz_filename, ansi_filename, MAX_PATH, 0 ), "invalid ansi filename\n" );
+    char ansi_filename[MAX_PATH * 2];
+    FAIL_IF_ERROR( !x264_ansi_filename( psz_filename, ansi_filename, MAX_PATH * 2, 0 ), "invalid ansi filename\n" );
     AVS_Value arg = avs_new_value_string( ansi_filename );
 #else
     AVS_Value arg = avs_new_value_string( psz_filename );
@@ -224,6 +242,14 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
     }
     else /* non script file */
     {
+        /* AviSynth+ need explicit invoke of AutoloadPlugins() for registering plugins functions */
+        if( h->func.avs_function_exists( h->env, "AutoloadPlugins" ) )
+        {
+            res = h->func.avs_invoke( h->env, "AutoloadPlugins", avs_new_value_array( NULL, 0 ), NULL );
+            if( avs_is_error( res ) )
+                x264_cli_log( "avs", X264_LOG_INFO, "AutoloadPlugins failed: %s\n", avs_as_string( res ) );
+        }
+
         /* cycle through known source filters to find one that works */
         const char *filter[AVS_MAX_SEQUENCE+1] = { 0 };
         avs_build_filter_sequence( filename_ext, filter );
@@ -250,11 +276,19 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
             x264_cli_printf( X264_LOG_INFO, "failed\n" );
         }
         FAIL_IF_ERROR( !filter[i], "unable to find source filter to open `%s'\n", psz_filename )
+        if( !strcasecmp( filter[i], "HBVFWSource" ) )
+            opt->bit_depth = 16;
     }
     FAIL_IF_ERROR( !avs_is_clip( res ), "`%s' didn't return a video clip\n", psz_filename )
     h->clip = h->func.avs_take_clip( res, h->env );
     const AVS_VideoInfo *vi = h->func.avs_get_video_info( h->clip );
     FAIL_IF_ERROR( !avs_has_video( vi ), "`%s' has no video data\n", psz_filename )
+
+#if HAVE_AUDIO
+    h->filename = strdup( psz_filename );
+    h->has_audio = !!avs_has_audio( vi );
+#endif
+
     /* if the clip is made of fields instead of frames, call weave to make them frames */
     if( avs_is_field_based( vi ) )
     {
@@ -292,7 +326,8 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
         {
             // if converting from yuv, then we specify the matrix for the input, otherwise use the output's.
             int use_pc_matrix = avs_is_yuv( vi ) ? opt->input_range == RANGE_PC : opt->output_range == RANGE_PC;
-            snprintf( matrix, sizeof(matrix), "%s601", use_pc_matrix ? "PC." : "Rec" ); /* FIXME: use correct coefficients */
+            strcpy( matrix, use_pc_matrix ? "PC." : "Rec" );
+            strcat( matrix, ( vi->width > 1024 || vi->height > 576 ) ? "709" : "601" );
             arg_count++;
             // notification that the input range has changed to the desired one
             opt->input_range = opt->output_range;
@@ -322,6 +357,23 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
         opt->input_range = opt->output_range;
     }
 #endif
+    if( opt->bit_depth > 8 && opt->bit_depth != BIT_DEPTH && opt->bit_depth != 16 )
+    {
+        AVS_Value arg_arr[] = { res, avs_new_value_int( 0 ), avs_new_value_int( 0 ), avs_new_value_int( 0 ),
+                                     avs_new_value_int( 0 ), avs_new_value_int( 0 ),
+                                     avs_new_value_int( opt->bit_depth ), avs_new_value_int( 2 ),
+                                     avs_new_value_int( BIT_DEPTH ), avs_new_value_int( BIT_DEPTH > 8 ? 2 : 0 ) };
+        const char *arg_name[] = { NULL, "Y", "Cb", "Cr",
+                                          "grainY", "grainC",
+                                          "input_depth", "input_mode",
+                                          "output_depth", "output_mode" };
+        AVS_Value res2 = h->func.avs_invoke( h->env, "f3kdb", avs_new_value_array( arg_arr, 10 ), arg_name );
+        x264_cli_log( "avs", X264_LOG_WARNING, "performing bit depth conversion using f3kdb: %d->%d\n", opt->bit_depth, BIT_DEPTH );
+        FAIL_IF_ERROR( avs_is_error( res2 ), "couldn't convert bit depth: %s\n", avs_as_error( res2 ) )
+        res = update_clip( h, &vi, res2, res );
+        // notification that the input bit depth has changed to the desired one
+        opt->bit_depth = BIT_DEPTH;
+    }
 
     h->func.avs_release_value( res );
 
@@ -352,6 +404,21 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
     else
         info->csp = X264_CSP_NONE;
     info->vfr = 0;
+    if( !opt->b_accurate_fps )
+        x264_ntsc_fps( &info->fps_num, &info->fps_den );
+
+    if( opt->bit_depth > 8 )
+    {
+        FAIL_IF_ERROR( info->width & 3, "avisynth 16bit hack requires that width is at least mod4\n" )
+        x264_cli_log( "avs", X264_LOG_INFO, "avisynth 16bit hack enabled\n" );
+        info->csp |= X264_CSP_HIGH_DEPTH;
+        info->width >>= 1;
+        if( opt->bit_depth == BIT_DEPTH )
+        {
+            /* HACK: totally skips depth filter to prevent dither error */
+            info->csp |= X264_CSP_SKIP_DEPTH_FILTER;
+        }
+    }
 
     *p_handle = h;
     return 0;
@@ -411,8 +478,23 @@ static int close_file( hnd_t handle )
     if( h->func.avs_delete_script_environment )
         h->func.avs_delete_script_environment( h->env );
     avs_close( h->library );
+#if HAVE_AUDIO
+    free( h->filename );
+#endif
     free( h );
     return 0;
 }
 
+#if HAVE_AUDIO
+static hnd_t open_audio( hnd_t handle, int track )
+{
+    avs_hnd_t *h = handle;
+    if( !h->has_audio )
+        return NULL;
+    return x264_audio_open_from_file( "avs", h->filename, track );
+}
+
+const cli_input_t avs_input = { open_file, picture_alloc, read_frame, release_frame, picture_clean, close_file, open_audio };
+#else
 const cli_input_t avs_input = { open_file, picture_alloc, read_frame, release_frame, picture_clean, close_file };
+#endif

@@ -249,21 +249,31 @@ int x264_cqm_init( x264_t *h )
 
     if( !h->mb.b_lossless )
     {
-        while( h->chroma_qp_table[SPEC_QP(h->param.rc.i_qp_min)] <= max_chroma_qp_err )
-            h->param.rc.i_qp_min++;
-        if( min_qp_err <= h->param.rc.i_qp_max )
-            h->param.rc.i_qp_max = min_qp_err-1;
-        if( max_qp_err >= h->param.rc.i_qp_min )
-            h->param.rc.i_qp_min = max_qp_err+1;
-        /* If long level-codes aren't allowed, we need to allow QP high enough to avoid them. */
-        if( !h->param.b_cabac && h->sps->i_profile_idc < PROFILE_HIGH )
-            while( h->chroma_qp_table[SPEC_QP(h->param.rc.i_qp_max)] <= 12 || h->param.rc.i_qp_max <= 12 )
-                h->param.rc.i_qp_max++;
-        if( h->param.rc.i_qp_min > h->param.rc.i_qp_max )
+        for( int i = 0; i < 3; i++ )
         {
-            x264_log( h, X264_LOG_ERROR, "Impossible QP constraints for CQM (min=%d, max=%d)\n", h->param.rc.i_qp_min, h->param.rc.i_qp_max );
-            return -1;
+            while( h->chroma_qp_table[SPEC_QP(h->param.rc.i_qp_min[i])] <= max_chroma_qp_err )
+                h->param.rc.i_qp_min[i]++;
+            if( min_qp_err <= h->param.rc.i_qp_max[i] )
+                h->param.rc.i_qp_max[i] = min_qp_err-1;
+            if( max_qp_err >= h->param.rc.i_qp_min[i] )
+                h->param.rc.i_qp_min[i] = max_qp_err+1;
+            /* If long level-codes aren't allowed, we need to allow QP high enough to avoid them. */
+            if( !h->param.b_cabac && h->sps->i_profile_idc < PROFILE_HIGH )
+                while( h->chroma_qp_table[SPEC_QP(h->param.rc.i_qp_max[i])] <= 12 || h->param.rc.i_qp_max[i] <= 12 )
+                    h->param.rc.i_qp_max[i]++;
+            if( h->param.rc.i_qp_min[i] > h->param.rc.i_qp_max[i] )
+            {
+                x264_log( h, X264_LOG_ERROR, "Impossible QP constraints for CQM (min=%d, max=%d)\n",
+                          h->param.rc.i_qp_min[i], h->param.rc.i_qp_max[i] );
+                return -1;
+            }
         }
+        h->param.rc.i_qp_min_min = X264_MIN3( h->param.rc.i_qp_min[SLICE_TYPE_I],
+                                              h->param.rc.i_qp_min[SLICE_TYPE_P],
+                                              h->param.rc.i_qp_min[SLICE_TYPE_B] );
+        h->param.rc.i_qp_max_max = X264_MAX3( h->param.rc.i_qp_max[SLICE_TYPE_I],
+                                              h->param.rc.i_qp_max[SLICE_TYPE_P],
+                                              h->param.rc.i_qp_max[SLICE_TYPE_B] );
     }
     return 0;
 fail:

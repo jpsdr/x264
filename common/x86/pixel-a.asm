@@ -5221,3 +5221,88 @@ ads_mvs_ssse3:
     jl .loop
     movifnidn eax, r0d
     RET
+
+;=============================================================================
+; NSSD
+;=============================================================================
+
+%macro NOISE_CORE_LOAD_FIRST 3
+    mova      %1, [r0+%3]
+    movu      %2, [r0+%3+1]
+%endmacro
+
+%macro NOISE_CORE_LOAD_LAST 3
+    mova      %1, [r0+%3]
+    mova      %2, %1
+    psllq     %1, 8
+    psrlq     %2, 8
+    psrlq     %1, 8
+%endmacro
+
+%macro NOISE_CORE_START 5
+    NOISE_CORE_LOAD %1, %2, %5
+    mova      %3, %1
+    mova      %4, %2
+    punpcklbw %1, m7
+    punpcklbw %2, m7
+    punpckhbw %3, m7
+    punpckhbw %4, m7
+    psubw     %1, %2
+    psubw     %3, %4
+%endmacro
+
+%macro NOISE_CORE 7
+    NOISE_CORE_START %1, %2, %3, %4, %7
+    psubw     %5, %1
+    psubw     %6, %3
+    ABSW2     %5, %6, %5, %6, %4, %2
+    paddw     %6, %5
+    paddw     m6, %6
+%endmacro
+
+;arguments: src, stride
+;macro arguments: width, height
+%macro NOISE 2
+%if %1 == 16
+cglobal pixel_noise_%1x%2, 2,3
+    mov       r2, r0
+%else
+cglobal pixel_noise_%1x%2, 2,2
+pixel_noise_%1x%2 %+ .skip_prologue
+%endif
+    pxor      m7, m7
+    pxor      m6, m6
+    NOISE_CORE_START m0, m1, m2, m3, 0
+    NOISE_CORE m4, m1, m5, m3, m0, m2, r1
+    lea r0, [r0+r1*2]
+%rep (%2 - 2) / 2
+    NOISE_CORE m0, m1, m2, m3, m4, m5, 0
+    NOISE_CORE m4, m1, m5, m3, m0, m2, r1
+    lea r0, [r0+r1*2]
+%endrep
+    mova      m0, m6
+    punpcklwd m0, m7
+    punpckhwd m6, m7
+    paddd     m6, m0
+    mova      m0, m6
+    psrlq     m6, 32
+    paddd     m0, m6
+%if %1 == 16
+    lea       r0, [r2+8]
+    movd      r2, m0
+    call      pixel_noise_8x%2 %+ .skip_prologue
+    add       rax, r2
+%else
+    movd      rax, m0
+%endif
+    RET
+%endmacro
+
+INIT_MMX mmx2
+%define NOISE_CORE_LOAD NOISE_CORE_LOAD_LAST
+NOISE  8, 16
+NOISE  8,  8
+NOISE  8,  4
+%define NOISE_CORE_LOAD NOISE_CORE_LOAD_FIRST
+NOISE  16, 16
+NOISE  16,  8
