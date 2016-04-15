@@ -288,7 +288,8 @@ static int init( hnd_t *handle, const char *opt_str )
 {
     assert( opt_str );
     assert( !(*handle) ); // This must be the first filter
-    char **opts = x264_split_options( opt_str, (const char*[]){ "filename", "track", NULL } );
+	static const char * const optlist[] = { "filename", "track", NULL };
+    char **opts = x264_split_options( opt_str, optlist );
 
     if( !opts )
         return -1;
@@ -402,7 +403,7 @@ static int init( hnd_t *handle, const char *opt_str )
     h->bufsize = DEFAULT_BUFSIZE;
     h->buffer = malloc( h->bufsize );
 
-    x264_free_string_array( opts );
+    free( opts );
     return 0;
 
 error:
@@ -412,7 +413,7 @@ fail:
         free( h );
     *handle = NULL;
 fail2:
-    x264_free_string_array( opts );
+    free( opts );
     return -1;
 }
 
