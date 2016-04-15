@@ -132,7 +132,7 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
         h->filename  = strdup( psz_filename );
         h->has_audio = !!( FFMS_GetFirstTrackOfType( idx, FFMS_TYPE_AUDIO, &e ) > 0 );
 #endif
-        h->video_source = FFMS_CreateVideoSource( psz_filename, trackno, idx, 1, seekmode, &e );
+        h->video_source = FFMS_CreateVideoSource( psz_filename, trackno, idx, opt->demuxer_threads, seekmode, &e );
     }
     FFMS_DestroyIndex( idx );
 
@@ -190,7 +190,7 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
     }
 
     /* show video info */
-    FFMS_Indexer *idxer    = FFMS_CreateIndexer( src_filename, &e );
+    FFMS_Indexer *idxer    = FFMS_CreateIndexer( psz_filename, &e );
     const char *format     = FFMS_GetFormatNameI( idxer );
     const char *codec      = FFMS_GetCodecNameI( idxer, trackno );
     double duration        = videop->NumFrames * videop->FPSDenominator / videop->FPSNumerator;
