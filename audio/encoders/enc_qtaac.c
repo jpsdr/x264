@@ -526,7 +526,8 @@ static hnd_t qtaac_init( hnd_t filter_chain, const char *opt_str )
 {
     assert( filter_chain );
 
-    char **opts     = x264_split_options( opt_str, (const char*[]){ AUDIO_CODEC_COMMON_OPTIONS, "samplerate", "sbr", "mode", NULL } );
+    static const char * const optlist[] = { AUDIO_CODEC_COMMON_OPTIONS, "samplerate", "sbr", "mode", NULL };
+	char **opts     = x264_split_options( opt_str, optlist);
     if( !opts )
     {
         x264_cli_log( "qtaac", X264_LOG_ERROR, "wrong audio options.\n" );
@@ -566,7 +567,7 @@ static hnd_t qtaac_init( hnd_t filter_chain, const char *opt_str )
     h->config.encoder_quality = x264_otof( x264_get_option( "quality", opts ), EncoderQuality_Medium );
     h->info.samplerate = x264_otof( x264_get_option( "samplerate", opts ), chain->info.samplerate );
 
-    x264_free_string_array( opts );
+    free( opts );
 
     if( h->info.samplerate > chain->info.samplerate )
     {

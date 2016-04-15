@@ -234,20 +234,10 @@ static void set_frame_colors( cli_pic_t *pic, uint16_t *color )
     }
 }
 
-static int init( hnd_t *handle, cli_vid_filter_t *filter, video_info_t *info,
-                 x264_param_t *param, char *opt_string )
+static int handle_opts(int *arg, const x264_cli_csp_t *csp, video_info_t *info, char **opts, const char * const *optlist )
 {
-    int arg[9];
-    char *opt;
-    const x264_cli_csp_t *csp = x264_cli_get_csp( info->csp );
-    static const char *optlist[] = { "left", "top", "right", "bottom", "width",
-                                     "height", "red", "green", "blue", NULL };
-    char **opts = x264_split_options( opt_string, optlist );
-
-    pad_handle_t *h = calloc( 1, sizeof(pad_handle_t) );
-    if( !h )
-        return -1;
-
+	char *opt;
+	
     for( int i = 0; i < 9; i++ )
     {
         int mod = i&1 ? (csp->mod_height << info->interlaced) : csp->mod_width;
@@ -257,7 +247,26 @@ static int init( hnd_t *handle, cli_vid_filter_t *filter, video_info_t *info,
                        "%s pad value '%s' is not a multiple of %d\n",
                        optlist[i], opt, mod )
     }
-    x264_free_string_array( opts );
+	return 0;	
+}
+
+static int init( hnd_t *handle, cli_vid_filter_t *filter, video_info_t *info,
+                 x264_param_t *param, char *opt_string )
+{
+    int arg[9];
+    const x264_cli_csp_t *csp = x264_cli_get_csp( info->csp );
+    static const char * const optlist[] = { "left", "top", "right", "bottom", "width",
+                                     "height", "red", "green", "blue", NULL };
+    char **opts = x264_split_options( opt_string, optlist );
+
+    pad_handle_t *h = calloc( 1, sizeof(pad_handle_t) );
+    if( !h )
+        return -1;
+	
+    int err = handle_opts( arg, csp, info, opts, optlist );
+    free( opts );
+    if( err )
+        return -1;
 
 /* For sanity! */
 #define round_a_to_b(a,b) (((a)+(b)/2)/(b))*(b)

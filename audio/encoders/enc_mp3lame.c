@@ -30,7 +30,8 @@ static hnd_t init( hnd_t filter_chain, const char *opt_str )
         return 0;
     }
 
-    char **opts = x264_split_options( opt_str, (const char*[]){ AUDIO_CODEC_COMMON_OPTIONS, "samplerate", NULL } );
+    static const char * const optlist[] = { AUDIO_CODEC_COMMON_OPTIONS, "samplerate", NULL };
+	char **opts = x264_split_options( opt_str, optlist);
     if( !opts )
     {
         x264_cli_log( "lame", X264_LOG_ERROR, "wrong audio options.\n" );
@@ -53,7 +54,7 @@ static hnd_t init( hnd_t filter_chain, const char *opt_str )
 
     h->info.samplerate = x264_otof( x264_get_option( "samplerate", opts ), chain->info.samplerate );
 
-    x264_free_string_array( opts );
+    free( opts );
 
     h->info.extradata      = NULL;
     h->info.extradata_size = 0;
