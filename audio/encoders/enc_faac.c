@@ -40,8 +40,9 @@ static hnd_t init( hnd_t filter_chain, const char *opt_str )
         x264_cli_log( "faac", X264_LOG_ERROR, "channels > 8 is not supported\n" );
         return NULL;
     }
-
-    char **opts = x264_split_options( opt_str, (const char*[]){ AUDIO_CODEC_COMMON_OPTIONS, "cutoff", "midside", "tns", "shortctl", NULL } );
+	
+	static const char * const optlist[] = { AUDIO_CODEC_COMMON_OPTIONS, "cutoff", "midside", "tns", "shortctl", NULL };
+    char **opts = x264_split_options( opt_str, optlist);
     if( !opts )
     {
         x264_cli_log( "faac", X264_LOG_ERROR, "wrong audio options.\n" );
@@ -67,7 +68,7 @@ static hnd_t init( hnd_t filter_chain, const char *opt_str )
     int tns      = x264_otob( x264_get_option( "tns", opts ), 0 );
     int shortctl = x264_clip3( x264_otoi( x264_get_option( "shortctl", opts ), SHORTCTL_NORMAL ), SHORTCTL_NORMAL, SHORTCTL_NOLONG );
 
-    x264_free_string_array( opts );
+    free( opts );
 
     unsigned long int samplesInput, maxBytesOutput;
     if( !( h->faac = faacEncOpen( h->info.samplerate, h->info.channels,
