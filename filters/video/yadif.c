@@ -104,7 +104,7 @@ static int yadif_init( hnd_t *handle, cli_vid_filter_t *filter,
     if( opt_string )
     {
         char *opt;
-        static const char *optlist[] = { "mode", "order", NULL };
+        static const char * const optlist[] = { "mode", "order", NULL };
         char **opts = x264_split_options( opt_string, optlist );
 
         opt = x264_get_option( "mode", opts );
@@ -130,7 +130,7 @@ static int yadif_init( hnd_t *handle, cli_vid_filter_t *filter,
                 x264_cli_log( NAME, X264_LOG_WARNING,
                               "Unknown order (%s), ignoring\n", opt );
         }
-        x264_free_string_array( opts );
+        free( opts );
     }
 
     if( x264_init_vid_filter( "cache", handle, filter, info, param, (void*)3 ) )

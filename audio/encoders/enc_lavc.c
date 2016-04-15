@@ -138,7 +138,8 @@ static hnd_t init( hnd_t filter_chain, const char *opt_str )
     audio_hnd_t *chain = h->filter_chain = filter_chain;
     h->preinfo = h->info = chain->info;
 
-    char **opts = x264_split_options( opt_str, (const char*[]){ AUDIO_CODEC_COMMON_OPTIONS, "profile", "cutoff", NULL } );
+	static const char * const optlist[] = { AUDIO_CODEC_COMMON_OPTIONS, "profile", "cutoff", NULL };
+    char **opts = x264_split_options( opt_str, optlist );
     if( !opts )
     {
         x264_cli_log( "lavc", X264_LOG_ERROR, "wrong audio options.\n" );
@@ -224,7 +225,7 @@ if( h->info.chanlayout == 0 )
 
     h->ctx->compression_level = x264_otof( x264_get_option( "quality", opts ), FF_COMPRESSION_DEFAULT );
 
-    x264_free_string_array( opts );
+    free( opts );
 
     if( is_vbr )
     {

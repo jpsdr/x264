@@ -46,7 +46,8 @@ static int init( hnd_t *handle, const char *opt_str )
 {
     assert( opt_str );
     assert( !(*handle) ); // This must be the first filter
-    char **opts = x264_split_options( opt_str, (const char*[]){ "filename", "track", NULL } );
+	static const char * const optlist[] = { "filename", "track", NULL };
+    char **opts = x264_split_options( opt_str, optlist );
 
     if( !opts )
         return -1;
@@ -149,7 +150,7 @@ static int init( hnd_t *handle, const char *opt_str )
     if( !buffer_next_frame( h ) )
         goto codecfail;
 
-    x264_free_string_array( opts );
+    free( opts );
     return 0;
 
 codecfail:
@@ -163,7 +164,7 @@ fail:
         free( h );
     *handle = NULL;
 fail2:
-    x264_free_string_array( opts );
+    free( opts );
     return -1;
 }
 

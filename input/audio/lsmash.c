@@ -24,7 +24,8 @@ static int lsmash_init( hnd_t *handle, const char *opt_str )
 {
     assert( opt_str );
     assert( !(*handle) ); // This must be the first filter
-    char **opts = x264_split_options( opt_str, (const char*[]){ "filename", "track", NULL } );
+	static const char * const optlist[] = { "filename", "track", NULL };
+    char **opts = x264_split_options( opt_str, optlist );
 
     if( !opts )
         return -1;
@@ -142,7 +143,7 @@ static int lsmash_init( hnd_t *handle, const char *opt_str )
     h->frame_count = 0;
     h->last_dts    = 0;
 
-    x264_free_string_array( opts );
+    free( opts );
 
     x264_cli_log( "lsmash", X264_LOG_INFO, "opened L-SMASH importer for %s audio stream copy.\n", h->info.codec_name );
 
@@ -165,7 +166,7 @@ fail:
         free( h );
     *handle = NULL;
 fail2:
-    x264_free_string_array( opts );
+    free( opts );
     return -1;
 }
 

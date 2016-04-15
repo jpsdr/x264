@@ -38,7 +38,8 @@ static hnd_t init( hnd_t filter_chain, const char *opt_str )
         return NULL;
     }
 
-    char **opts = x264_split_options( opt_str, (const char*[]){ AUDIO_CODEC_COMMON_OPTIONS, "dtx", NULL } );
+	static const char * const optlist[] = { AUDIO_CODEC_COMMON_OPTIONS, "dtx", NULL };
+    char **opts = x264_split_options( opt_str, optlist);
     if( !opts )
     {
         x264_cli_log( "amrwb_3gpp", X264_LOG_ERROR, "wrong audio options.\n" );
@@ -89,7 +90,7 @@ static hnd_t init( hnd_t filter_chain, const char *opt_str )
         break;
     }
 
-    x264_free_string_array( opts );
+    free( opts );
 
     h->amrwb_3gpp = E_IF_init();
     if( !h->amrwb_3gpp )
