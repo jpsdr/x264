@@ -662,6 +662,7 @@ static int validate_parameters( x264_t *h, int b_open )
 
     h->param.i_frame_reference = x264_clip3( h->param.i_frame_reference, 1, X264_REF_MAX );
 
+    if( b_open )	
     {
         const x264_level_t *l = x264_levels;
         if( h->param.i_level_idc == X264_LEVEL_IDC_AUTO )
@@ -1305,34 +1306,6 @@ static int validate_parameters( x264_t *h, int b_open )
     if( h->param.analyse.i_subpel_refine >= 10 && (h->param.analyse.i_trellis != 2 || !h->param.rc.i_aq_mode) )
         h->param.analyse.i_subpel_refine = 9;
 
-    if( b_open )
-    {
-        const x264_level_t *l = x264_levels;
-        if( h->param.i_level_idc < 0 )
-        {
-            int maxrate_bak = h->param.rc.i_vbv_max_bitrate;
-            if( h->param.rc.i_rc_method == X264_RC_ABR && h->param.rc.i_vbv_buffer_size <= 0 )
-                h->param.rc.i_vbv_max_bitrate = h->param.rc.i_bitrate * 2;
-            x264_sps_init( h->sps, h->param.i_sps_id, &h->param );
-            do h->param.i_level_idc = l->level_idc;
-                while( l[1].level_idc && x264_validate_levels( h, 0 ) && l++ );
-            h->param.rc.i_vbv_max_bitrate = maxrate_bak;
-        }
-        else
-        {
-            while( l->level_idc && l->level_idc != h->param.i_level_idc )
-                l++;
-            if( l->level_idc == 0 )
-            {
-                x264_log( h, X264_LOG_ERROR, "invalid level_idc: %d\n", h->param.i_level_idc );
-                return -1;
-            }
-        }
-        if( h->param.analyse.i_mv_range <= 0 )
-            h->param.analyse.i_mv_range = l->mv_range >> PARAM_INTERLACED;
-        else
-            h->param.analyse.i_mv_range = x264_clip3(h->param.analyse.i_mv_range, 32, 8192 >> PARAM_INTERLACED);
-    }
     h->param.analyse.i_weighted_pred = x264_clip3( h->param.analyse.i_weighted_pred, X264_WEIGHTP_NONE, X264_WEIGHTP_SMART );
 
     if( h->param.i_lookahead_threads == X264_THREADS_AUTO )
