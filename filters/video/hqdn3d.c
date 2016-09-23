@@ -79,7 +79,7 @@ static int init(hnd_t *handle, cli_vid_filter_t *filter, video_info_t *info,
 
     FAIL_IF_ERROR(!(info->csp == X264_CSP_I420 || info->csp == X264_CSP_I422
         || info->csp == X264_CSP_I444 || info->csp == X264_CSP_YV12),
-        "Only planar YUV images supported\n")
+        "Only planar YUV images supported\n");
 
     hqdn3d_hnd_t *h = calloc(1, sizeof(hqdn3d_hnd_t));
     if(!h)
