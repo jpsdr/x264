@@ -459,7 +459,7 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
                                           "output_depth", "output_mode" };
         AVS_Value res2 = h->func.avs_invoke( h->env, "f3kdb", avs_new_value_array( arg_arr, 10 ), arg_name );
         x264_cli_log( "avs", X264_LOG_WARNING, "performing bit depth conversion using f3kdb: %d->%d\n", opt->bit_depth, BIT_DEPTH );
-        FAIL_IF_ERROR( avs_is_error( res2 ), "couldn't convert bit depth: %s\n", avs_as_error( res2 ) )
+        FAIL_IF_ERROR( avs_is_error( res2 ), "couldn't convert bit depth: %s\n", avs_as_error( res2 ) );
         res = update_clip( h, &vi, res2, res );
         // notification that the input bit depth has changed to the desired one
         opt->bit_depth = BIT_DEPTH;
@@ -513,7 +513,7 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
 
     if( opt->bit_depth > 8 )
     {
-        FAIL_IF_ERROR( info->width & 3, "avisynth 16bit hack requires that width is at least mod4\n" )
+        FAIL_IF_ERROR( info->width & 3, "avisynth 16bit hack requires that width is at least mod4\n" );
         x264_cli_log( "avs", X264_LOG_INFO, "avisynth 16bit hack enabled\n" );
         info->csp |= X264_CSP_HIGH_DEPTH;
         info->width >>= 1;

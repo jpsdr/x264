@@ -89,7 +89,7 @@ static int yadif_init( hnd_t *handle, cli_vid_filter_t *filter,
     yadif_handle_t *h;
 
     FAIL_IF_ERROR( unsupported_colorspace( info->csp ),
-                   "Only planar YCbCr images supported\n" )
+                   "Only planar YCbCr images supported\n" );
 
     h = calloc( 1, sizeof(yadif_handle_t) );
     if(!h)
