@@ -80,7 +80,7 @@ static int open_file( char *psz_filename, hnd_t *p_handle, cli_output_opt_t *opt
         return -1;
     int b_regular = x264_is_regular_file( fh );
     fclose( fh );
-    FAIL_IF_ERR( !b_regular, "avi", "AVI output is incompatible with non-regular file `%s'\n", psz_filename )
+    FAIL_IF_ERR( !b_regular, "avi", "AVI output is incompatible with non-regular file `%s'\n", psz_filename );
 
     if( !(h = malloc( sizeof(avi_hnd_t) )) )
         return -1;

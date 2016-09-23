@@ -2049,7 +2049,7 @@ static int parse( int argc, char **argv, x264_param_t *param, cli_opt_t *opt )
                 audio_filename = optarg;
                 break;
             case OPT_AUDIODEMUXER:
-                FAIL_IF_ERROR( parse_enum_name( optarg, audio_demuxers, &audio_demuxer ), "Unknown audio demuxer `%s'\n", optarg )
+                FAIL_IF_ERROR( parse_enum_name( optarg, audio_demuxers, &audio_demuxer ), "Unknown audio demuxer `%s'\n", optarg );
                 break;
             case OPT_AUDIOTRACK:
                 audio_track = atoi( optarg );
@@ -2180,7 +2180,7 @@ generic_option:
         if( audio_filename )
         {
             char used_demuxer[8];
-            FAIL_IF_ERROR( select_audio_demuxer( audio_demuxer, used_demuxer, &audio_enc, audio_filename ), "no audio demuxer was found for --audiofile.\n" )
+            FAIL_IF_ERROR( select_audio_demuxer( audio_demuxer, used_demuxer, &audio_enc, audio_filename ), "no audio demuxer was found for --audiofile.\n" );
             haud = x264_audio_open_from_file( used_demuxer, audio_filename, audio_track );
         }
         else if( cli_input.open_audio )
@@ -2246,7 +2246,7 @@ generic_option:
             len += snprintf( &arg[len], MAX_ARGS - len, "%s%s", len ? "," : "", audio_extraopt );
     }
 
-    FAIL_IF_ERROR( cli_output.open_file( output_filename, &opt->hout, &output_opt, haud, audio_enc, arg ) < 0, "could not open output file `%s'\n", output_filename )
+    FAIL_IF_ERROR( cli_output.open_file( output_filename, &opt->hout, &output_opt, haud, audio_enc, arg ) < 0, "could not open output file `%s'\n", output_filename );
 
     if( tcfile_name )
     {
