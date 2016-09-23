@@ -245,7 +245,7 @@ static int handle_opts(int *arg, const x264_cli_csp_t *csp, video_info_t *info, 
         arg[i] = x264_otoi( opt, 0 );
         FAIL_IF_ERROR( i < 6 && arg[i] % mod,
                        "%s pad value '%s' is not a multiple of %d\n",
-                       optlist[i], opt, mod )
+                       optlist[i], opt, mod );
     }
 	return 0;	
 }
@@ -278,11 +278,11 @@ static int init( hnd_t *handle, cli_vid_filter_t *filter, video_info_t *info,
 #define HEIGHT arg[5]
     FAIL_IF_ERROR( WIDTH && WIDTH < info->width + left + right,
                    "requested width (%d) is less than requested padding (%d + %d + %d)\n",
-                   WIDTH, info->width, left, right )
+                   WIDTH, info->width, left, right );
 
     FAIL_IF_ERROR( HEIGHT && HEIGHT < info->height + top + bottom,
                    "requested height (%d) is less than requested padding (%d + %d + %d)\n",
-                   HEIGHT, info->height, top, bottom )
+                   HEIGHT, info->height, top, bottom );
 
     h->width = (WIDTH) ? WIDTH : info->width + left + right;
     h->height = (HEIGHT) ? HEIGHT : info->height + top + bottom;
