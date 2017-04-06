@@ -13,6 +13,7 @@ typedef struct lsmash_source_t
 
     importer_t* importer;
     lsmash_audio_summary_t* summary;
+	lsmash_root_t* root;
 
     int64_t frame_count;
     int64_t last_dts;
@@ -44,8 +45,13 @@ static int lsmash_init( hnd_t *handle, const char *opt_str )
     }
 
     INIT_FILTER_STRUCT( audio_filter_lsmash, lsmash_source_t );
-
-    h->importer = lsmash_importer_open( filename, "auto" );
+	
+	h->root = lsmash_create_root();
+	
+	if( !h->root )
+        goto error;
+	
+    h->importer = lsmash_importer_open(h->root, filename, "auto" );
     if( !h->importer )
         goto error;
 
@@ -162,6 +168,11 @@ fail:
         lsmash_importer_close( h->importer );
         h->importer = NULL;
     }
+	if ( h->root )
+	{
+	    lsmash_destroy_root( h->root );
+		h->root = NULL;
+	}
     if( h )
         free( h );
     *handle = NULL;
@@ -187,6 +198,8 @@ static void lsmash_close( hnd_t handle )
         lsmash_importer_close( h->importer );
     if( h->info.opaque )
         free( h->info.opaque );
+	if ( h->root )
+	    lsmash_destroy_root( h->root );
     if( h )
         free( h );
 }
