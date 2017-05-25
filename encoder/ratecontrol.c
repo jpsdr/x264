@@ -333,7 +333,7 @@ static NOINLINE void get_image_mb( x264_t *h, int mb_x, int mb_y, x264_frame_t *
 {
 #define BLUE_THRESHOLD (0x81<<(BIT_DEPTH-8))
 #define RED_THRESHOLD  (0x87<<(BIT_DEPTH-8))
-    ALIGNED_N( static pixel zero[17] ) = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1};
+    ALIGNED_32( static pixel zero[17] ) = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1};
     if( CHROMA444 )
     {
         int stride[3];
@@ -366,7 +366,7 @@ static NOINLINE void get_image_mb( x264_t *h, int mb_x, int mb_y, x264_frame_t *
             stride[i] <<= b_field;
         }
         *luma = h->pixf.sad[PIXEL_16x16]( frame->plane[0] + offset[0], stride[0], zero, 0 ) >> 8;
-        ALIGNED_ARRAY_N( pixel, pix,[FENC_STRIDE*16] );
+        ALIGNED_ARRAY_32( pixel, pix,[FENC_STRIDE*16] );
         int chromapix = h->luma2chroma_pixel[PIXEL_16x16];
         int weight = 1 + (chromapix == PIXEL_8x16);
         h->mc.load_deinterleave_chroma_fenc( pix, frame->plane[1] + offset[1], stride[1], height[1] );
@@ -2015,8 +2015,8 @@ static NOINLINE float x264_haali_adaptive_quant( x264_t *h )
 {
 #define BLUE_THRESHOLD (0x81<<(BIT_DEPTH-8))
 #define RED_THRESHOLD  (0x87<<(BIT_DEPTH-8))
-    ALIGNED_N( static pixel zero[FDEC_STRIDE*8] );
-    ALIGNED_N( dctcoef dct[64] );
+    ALIGNED_32( static pixel zero[FDEC_STRIDE*8] );
+    ALIGNED_32( dctcoef dct[64] );
     float qp_adj;
     int total = 0;
 
