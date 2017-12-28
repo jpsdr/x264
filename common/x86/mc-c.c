@@ -177,8 +177,10 @@ void x264_mbtree_propagate_cost_avx512( int16_t *dst, uint16_t *propagate_in, ui
                                         uint16_t *inter_costs, uint16_t *inv_qscales, float *fps_factor, int len );
 void x264_mbtree_fix8_pack_ssse3( uint16_t *dst, float *src, int count );
 void x264_mbtree_fix8_pack_avx2 ( uint16_t *dst, float *src, int count );
+void x264_mbtree_fix8_pack_avx512( uint16_t *dst, float *src, int count );
 void x264_mbtree_fix8_unpack_ssse3( float *dst, uint16_t *src, int count );
 void x264_mbtree_fix8_unpack_avx2 ( float *dst, uint16_t *src, int count );
+void x264_mbtree_fix8_unpack_avx512( float *dst, uint16_t *src, int count );
 
 #define MC_CHROMA(cpu)\
 void x264_mc_chroma_##cpu( pixel *dstu, pixel *dstv, intptr_t i_dst, pixel *src, intptr_t i_src,\
@@ -908,4 +910,6 @@ void x264_mc_init_mmx( int cpu, x264_mc_functions_t *pf )
 #if ARCH_X86_64
     pf->mbtree_propagate_list = mbtree_propagate_list_avx512;
 #endif
+    pf->mbtree_fix8_pack      = x264_mbtree_fix8_pack_avx512;
+    pf->mbtree_fix8_unpack    = x264_mbtree_fix8_unpack_avx512;
 }
