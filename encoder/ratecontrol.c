@@ -622,7 +622,7 @@ void x264_adaptive_quant_frame( x264_t *h, x264_frame_t *frame, float *quant_off
             for( int mb_y = 0; mb_y < h->mb.i_mb_height; mb_y++ )
                 for( int mb_x = 0; mb_x < h->mb.i_mb_width; mb_x++ )
                 {
-                    uint32_t energy = x264_ac_energy_mb( h, mb_x, mb_y, frame, energy_yuv );
+                    uint32_t energy = ac_energy_mb( h, mb_x, mb_y, frame, energy_yuv );
                     float qp_adj = powf( energy + 1, 0.125f );
                     avg_adj += qp_adj;
                     avg_adj_pow2 += qp_adj * qp_adj;
@@ -654,7 +654,7 @@ void x264_adaptive_quant_frame( x264_t *h, x264_frame_t *frame, float *quant_off
                 }
                 else
                 {
-                    x264_ac_energy_mb( h, mb_x, mb_y, frame, energy_yuv );
+                    ac_energy_mb( h, mb_x, mb_y, frame, energy_yuv );
                     qp_adj = x264_adjust_OreAQ( h, mb_x, mb_y, frame, energy_yuv );
                 }
                 if( quant_offsets )
