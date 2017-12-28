@@ -363,6 +363,7 @@ enum sei_payload_type_e
     SEI_RECOVERY_POINT         = 6,
     SEI_DEC_REF_PIC_MARKING    = 7,
     SEI_FRAME_PACKING          = 45,
+	SEI_ALTERNATIVE_TRANSFER   = 147,
 };
 
 typedef struct
