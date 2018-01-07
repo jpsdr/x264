@@ -25,8 +25,8 @@
  * For more information, contact us at licensing@x264.com.
  *****************************************************************************/
 
-#ifndef X264_I386_QUANT_H
-#define X264_I386_QUANT_H
+#ifndef X264_X86_QUANT_H
+#define X264_X86_QUANT_H
 
 int x264_quant_2x2_dc_mmx2( dctcoef dct[4], int mf, int bias );
 int x264_quant_4x4_dc_mmx2( dctcoef dct[16], int mf, int bias );

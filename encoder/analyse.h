@@ -24,8 +24,8 @@
  * For more information, contact us at licensing@x264.com.
  *****************************************************************************/
 
-#ifndef X264_ANALYSE_H
-#define X264_ANALYSE_H
+#ifndef X264_ENCODER_ANALYSE_H
+#define X264_ENCODER_ANALYSE_H
 
 int x264_analyse_init_costs( x264_t *h );
 void x264_analyse_free_costs( x264_t *h );
