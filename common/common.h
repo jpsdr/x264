@@ -79,7 +79,6 @@ do {\
         *preallocs[prealloc_idx] += (intptr_t)ptr;\
 } while( 0 )
 
-#define ARRAY_SIZE(array)  (sizeof(array)/sizeof(array[0]))
 
 #define X264_BFRAME_MAX 16
 #define X264_REF_MAX 16
