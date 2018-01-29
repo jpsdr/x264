@@ -1447,3 +1447,5 @@ char *x264_param2string( x264_param_t *p, int b_res )
     return buf;
 }
 
+/* psy_trellis_init() has the largest size requirement of 16*FDEC_STRIDE*sizeof(pixel) */
+ALIGNED_64( uint8_t x264_zero[1024] ) = { 0 };
