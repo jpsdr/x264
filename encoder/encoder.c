@@ -1413,7 +1413,7 @@ static void set_aspect_ratio( x264_t *h, x264_param_t *param, int initial )
 /****************************************************************************
  * x264_encoder_open:
  ****************************************************************************/
-x264_t *x264_encoder_open( x264_param_t *param )
+static x264_t *encoder_open( x264_param_t *param )
 {
     x264_t *h;
     char buf[1000], *p;
@@ -1560,7 +1560,7 @@ x264_t *x264_encoder_open( x264_param_t *param )
     if( h->param.b_cabac )
         x264_cabac_init( h );
     else
-        x264_stack_align( x264_cavlc_init, h );
+        x264_cavlc_init( h );
 
     mbcmp_init( h );
     chroma_dsp_init( h );
@@ -1751,6 +1751,12 @@ fail:
     return NULL;
 }
 
+x264_t *x264_encoder_open( x264_param_t *param )
+{
+    /* x264_t is opaque */
+    return (x264_t *)x264_stack_align( encoder_open, param );
+}
+
 /****************************************************************************/
 static int encoder_try_reconfig( x264_t *h, x264_param_t *param, int *rc_reconfig )
 {
@@ -1842,7 +1848,7 @@ int x264_encoder_reconfig_apply( x264_t *h, x264_param_t *param )
 /****************************************************************************
  * x264_encoder_reconfig:
  ****************************************************************************/
-int x264_encoder_reconfig( x264_t *h, x264_param_t *param )
+static int encoder_reconfig( x264_t *h, x264_param_t *param )
 {
     h = h->thread[h->thread[0]->i_thread_phase];
     x264_param_t param_save = h->reconfig_h->param;
@@ -1858,12 +1864,22 @@ int x264_encoder_reconfig( x264_t *h, x264_param_t *param )
     return ret;
 }
 
+int x264_encoder_reconfig( x264_t *h, x264_param_t *param )
+{
+	return x264_stack_align(encoder_reconfig,h,param );
+}
+
 /****************************************************************************
  * x264_encoder_parameters:
  ****************************************************************************/
-void x264_encoder_parameters( x264_t *h, x264_param_t *param )
+static void encoder_parameters( x264_t *h, x264_param_t *param )
 {
     memcpy( param, &h->thread[h->i_thread_phase]->param, sizeof(x264_param_t) );
+}
+
+void x264_encoder_parameters( x264_t *h, x264_param_t *param )
+{
+	x264_stack_align(encoder_parameters,h,param );
 }
 
 /* internal usage */
@@ -1978,7 +1994,7 @@ static int encoder_encapsulate_nals( x264_t *h, int start )
 /****************************************************************************
  * x264_encoder_headers:
  ****************************************************************************/
-int x264_encoder_headers( x264_t *h, x264_nal_t **pp_nal, int *pi_nal )
+static int encoder_headers( x264_t *h, x264_nal_t **pp_nal, int *pi_nal )
 {
     int frame_size = 0;
     /* init bitstream context */
@@ -2016,6 +2032,11 @@ int x264_encoder_headers( x264_t *h, x264_nal_t **pp_nal, int *pi_nal )
     h->out.i_nal = 0;
 
     return frame_size;
+}
+
+int x264_encoder_headers( x264_t *h, x264_nal_t **pp_nal, int *pi_nal )
+{
+	return x264_stack_align(encoder_headers,h,pp_nal,pi_nal );
 }
 
 /* Check to see whether we have chosen a reference list ordering different
@@ -3083,7 +3104,7 @@ static void *slices_write( x264_t *h )
             }
         }
         h->sh.i_last_mb = X264_MIN( h->sh.i_last_mb, last_thread_mb );
-        if( x264_stack_align( slice_write, h ) )
+        if( slice_write( h ) )
             goto fail;
         h->sh.i_first_mb = h->sh.i_last_mb + 1;
         // if i_first_mb is not the last mb in a row then go to the next mb in MBAFF order
@@ -3118,7 +3139,7 @@ static int threaded_slices_write( x264_t *h )
         t->sh.i_last_mb  =   t->i_threadslice_end * h->mb.i_mb_width - 1;
     }
 
-    x264_stack_align( x264_analyse_weight_frame, h, h->mb.i_mb_height*16 + 16 );
+	x264_analyse_weight_frame( h, h->mb.i_mb_height*16 + 16 );
 
     x264_threads_distribute_ratecontrol( h );
 
@@ -3159,13 +3180,18 @@ static int threaded_slices_write( x264_t *h )
     return 0;
 }
 
-void x264_encoder_intra_refresh( x264_t *h )
+static void encoder_intra_refresh( x264_t *h )
 {
     h = h->thread[h->i_thread_phase];
     h->b_queued_intra_refresh = 1;
 }
 
-int x264_encoder_invalidate_reference( x264_t *h, int64_t pts )
+void x264_encoder_intra_refresh( x264_t *h )
+{
+    x264_stack_align(encoder_intra_refresh,h);
+}
+
+static int encoder_invalidate_reference( x264_t *h, int64_t pts )
 {
     if( h->param.i_bframe )
     {
@@ -3189,6 +3215,11 @@ int x264_encoder_invalidate_reference( x264_t *h, int64_t pts )
     return 0;
 }
 
+int x264_encoder_invalidate_reference( x264_t *h, int64_t pts )
+{
+    return x264_stack_align(encoder_invalidate_reference,h,pts);
+}
+
 /****************************************************************************
  * x264_encoder_encode:
  *  XXX: i_poc   : is the poc of the current given picture
@@ -3202,7 +3233,7 @@ int x264_encoder_invalidate_reference( x264_t *h, int64_t pts )
  *       B      5   2*4
  *       B      6   2*5
  ****************************************************************************/
-int     x264_encoder_encode( x264_t *h,
+static int     encoder_encode( x264_t *h,
                              x264_nal_t **pp_nal, int *pi_nal,
                              x264_picture_t *pic_in,
                              x264_picture_t *pic_out )
@@ -3296,7 +3327,7 @@ int     x264_encoder_encode( x264_t *h,
                 return -1;
         }
         else
-            x264_stack_align( x264_adaptive_quant_frame, h, fenc, pic_in->prop.quant_offsets );
+            x264_adaptive_quant_frame( h, fenc, pic_in->prop.quant_offsets );
 
         if( pic_in->prop.quant_offsets_free )
             pic_in->prop.quant_offsets_free( pic_in->prop.quant_offsets );
@@ -3758,6 +3789,15 @@ int     x264_encoder_encode( x264_t *h,
     return encoder_frame_end( thread_oldest, thread_current, pp_nal, pi_nal, pic_out );
 }
 
+
+int     x264_encoder_encode( x264_t *h,
+                             x264_nal_t **pp_nal, int *pi_nal,
+                             x264_picture_t *pic_in,
+                             x264_picture_t *pic_out )
+{
+    return x264_stack_align(encoder_encode,h,pp_nal,pi_nal,pic_in,pic_out );
+}
+
 static int encoder_frame_end( x264_t *h, x264_t *thread_current,
                               x264_nal_t **pp_nal, int *pi_nal,
                               x264_picture_t *pic_out )
@@ -4048,7 +4088,7 @@ static void print_intra( int64_t *i_mb_count, double i_count, int b_print_pcm, c
 /****************************************************************************
  * x264_encoder_close:
  ****************************************************************************/
-void    x264_encoder_close  ( x264_t *h )
+static void encoder_close ( x264_t *h )
 {
     int64_t i_yuv_size = FRAME_SIZE( h->param.i_width * h->param.i_height );
     int64_t i_mb_count_size[2][7] = {{0}};
@@ -4420,7 +4460,12 @@ void    x264_encoder_close  ( x264_t *h )
 #endif
 }
 
-int x264_encoder_delayed_frames( x264_t *h )
+void x264_encoder_close ( x264_t *h )
+{
+	x264_stack_align(encoder_close,h);
+}
+
+static int encoder_delayed_frames( x264_t *h )
 {
     int delayed_frames = 0;
     if( h->i_thread_frames > 1 )
@@ -4441,7 +4486,18 @@ int x264_encoder_delayed_frames( x264_t *h )
     return delayed_frames;
 }
 
-int x264_encoder_maximum_delayed_frames( x264_t *h )
+int x264_encoder_delayed_frames( x264_t *h )
+{
+    return x264_stack_align(encoder_delayed_frames,h);
+}
+
+static int encoder_maximum_delayed_frames( x264_t *h )
 {
     return h->frames.i_delay;
+}
+
+int x264_encoder_maximum_delayed_frames( x264_t *h )
+{
+    return x264_stack_align(encoder_maximum_delayed_frames,h);
+
 }

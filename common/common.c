@@ -44,7 +44,7 @@ static void log_default( void *, int, const char *, va_list );
 /****************************************************************************
  * x264_param_default:
  ****************************************************************************/
-void x264_param_default( x264_param_t *param )
+static void param_default( x264_param_t *param )
 {
     /* */
     memset( param, 0, sizeof( x264_param_t ) );
@@ -178,6 +178,11 @@ void x264_param_default( x264_param_t *param )
     param->i_opencl_device = 0;
     param->opencl_device_id = NULL;
     param->psz_clbin_file = NULL;
+}
+
+void x264_param_default( x264_param_t *param )
+{
+    x264_stack_align( param_default, param );
 }
 
 static int param_apply_preset( x264_param_t *param, const char *preset )
@@ -408,9 +413,9 @@ static int param_apply_tune( x264_param_t *param, const char *tune )
     return 0;
 }
 
-int x264_param_default_preset( x264_param_t *param, const char *preset, const char *tune )
+int param_default_preset( x264_param_t *param, const char *preset, const char *tune )
 {
-    x264_param_default( param );
+    param_default( param );
 
     if( preset && param_apply_preset( param, preset ) < 0 )
         return -1;
@@ -419,7 +424,12 @@ int x264_param_default_preset( x264_param_t *param, const char *preset, const ch
     return 0;
 }
 
-void x264_param_apply_fastfirstpass( x264_param_t *param )
+int x264_param_default_preset( x264_param_t *param, const char *preset, const char *tune )
+{
+    return x264_stack_align( param_default_preset, param, preset, tune );
+}
+
+static void param_apply_fastfirstpass( x264_param_t *param )
 {
     /* Set faster options in case of turbo firstpass. */
     if( param->rc.b_stat_write && !param->rc.b_stat_read )
@@ -432,6 +442,11 @@ void x264_param_apply_fastfirstpass( x264_param_t *param )
         param->analyse.i_trellis = 0;
         param->analyse.b_fast_pskip = 1;
     }
+}
+
+void x264_param_apply_fastfirstpass( x264_param_t *param )
+{
+    x264_stack_align( param_apply_fastfirstpass, param );
 }
 
 static int profile_string_to_int( const char *str )
@@ -573,7 +588,7 @@ static double atof_internal( const char *str, int *b_error )
 #define atoi(str) atoi_internal( str, &b_error )
 #define atof(str) atof_internal( str, &b_error )
 
-int x264_param_parse( x264_param_t *p, const char *name, const char *value )
+static int param_parse( x264_param_t *p, const char *name, const char *value )
 {
     char *name_buf = NULL;
     int b_error = 0;
@@ -1072,6 +1087,11 @@ int x264_param_parse( x264_param_t *p, const char *name, const char *value )
     return b_error ? errortype : 0;
 }
 
+int x264_param_parse( x264_param_t *param, const char *name, const char *value )
+{
+    return x264_stack_align( param_parse, param, name, value );
+}
+
 /****************************************************************************
  * x264_log:
  ****************************************************************************/
@@ -1117,7 +1137,7 @@ static void log_default( void *p_unused, int i_level, const char *psz_fmt, va_li
 /****************************************************************************
  * x264_picture_init:
  ****************************************************************************/
-void x264_picture_init( x264_picture_t *pic )
+static void picture_init( x264_picture_t *pic )
 {
     memset( pic, 0, sizeof( x264_picture_t ) );
     pic->i_type = X264_TYPE_AUTO;
@@ -1125,10 +1145,15 @@ void x264_picture_init( x264_picture_t *pic )
     pic->i_pic_struct = PIC_STRUCT_AUTO;
 }
 
+void x264_picture_init( x264_picture_t *pic )
+{
+    x264_stack_align( picture_init, pic );
+}
+
 /****************************************************************************
  * x264_picture_alloc:
  ****************************************************************************/
-int x264_picture_alloc( x264_picture_t *pic, int i_csp, int i_width, int i_height )
+static int picture_alloc( x264_picture_t *pic, int i_csp, int i_width, int i_height )
 {
     typedef struct
     {
@@ -1158,7 +1183,7 @@ int x264_picture_alloc( x264_picture_t *pic, int i_csp, int i_width, int i_heigh
     int csp = i_csp & X264_CSP_MASK;
     if( csp <= X264_CSP_NONE || csp >= X264_CSP_MAX || csp == X264_CSP_V210 )
         return -1;
-    x264_picture_init( pic );
+    picture_init( pic );
     pic->img.i_csp = i_csp;
     pic->img.i_plane = csp_tab[csp].planes;
     int depth_factor = i_csp & X264_CSP_HIGH_DEPTH ? 2 : 1;
@@ -1180,15 +1205,25 @@ int x264_picture_alloc( x264_picture_t *pic, int i_csp, int i_width, int i_heigh
     return 0;
 }
 
+int x264_picture_alloc( x264_picture_t *pic, int i_csp, int i_width, int i_height )
+{
+    return x264_stack_align( picture_alloc, pic, i_csp, i_width, i_height );
+}
+
 /****************************************************************************
  * x264_picture_clean:
  ****************************************************************************/
-void x264_picture_clean( x264_picture_t *pic )
+static void picture_clean( x264_picture_t *pic )
 {
     x264_free( pic->img.plane[0] );
 
     /* just to be safe */
     memset( pic, 0, sizeof( x264_picture_t ) );
+}
+
+void x264_picture_clean( x264_picture_t *pic )
+{
+    x264_stack_align( picture_clean, pic );
 }
 
 /****************************************************************************
