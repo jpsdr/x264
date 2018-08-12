@@ -501,7 +501,7 @@ int x264_param_apply_profile( x264_param_t *param, const char *profile )
 
     if( p < PROFILE_HIGH && (param->i_csp & X264_CSP_MASK) == X264_CSP_I400 )
     {
-        x264_log_internal( X264_LOG_ERROR, "%s profile doesn't support 4:0:0\n", profile );
+        x264_log( X264_LOG_ERROR, "%s profile doesn't support 4:0:0\n", profile );
         return -1;
     }
 	
