@@ -29,6 +29,8 @@
 
 void x264_sps_init( x264_sps_t *sps, int i_id, x264_param_t *param );
 void x264_sps_init_reconfigurable( x264_sps_t *sps, x264_param_t *param );
+void x264_sps_init_scaling_list( x264_sps_t *sps, x264_param_t *param );
+
 void x264_sps_write( bs_t *s, x264_sps_t *sps );
 void x264_pps_init( x264_pps_t *pps, int i_id, x264_param_t *param, x264_sps_t *sps );
 void x264_pps_write( bs_t *s, x264_sps_t *sps, x264_pps_t *pps );
