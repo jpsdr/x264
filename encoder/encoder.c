@@ -3093,6 +3093,7 @@ static void *slices_write( x264_t *h )
 {
     int i_slice_num = 0;
     int last_thread_mb = h->sh.i_last_mb;
+	int round_bias = h->param.i_avcintra_class ? 0 : h->param.i_slice_count/2;
 
     /* init stats */
     memset( &h->stat.frame, 0, sizeof(h->stat.frame) );
@@ -3127,7 +3128,7 @@ static void *slices_write( x264_t *h )
                 int height = h->mb.i_mb_height >> PARAM_INTERLACED;
                 int width = h->mb.i_mb_width << PARAM_INTERLACED;
                 i_slice_num++;
-                h->sh.i_last_mb = (height * i_slice_num + h->param.i_slice_count/2) / h->param.i_slice_count * width - 1;
+				h->sh.i_last_mb = (height * i_slice_num + round_bias) / h->param.i_slice_count * width - 1;
             }
         }
         h->sh.i_last_mb = X264_MIN( h->sh.i_last_mb, last_thread_mb );
@@ -3150,6 +3151,8 @@ fail:
 
 static int threaded_slices_write( x264_t *h )
 {
+    int round_bias = h->param.i_avcintra_class ? 0 : h->param.i_slice_count/2;
+
     /* set first/last mb and sync contexts */
     for( int i = 0; i < h->param.i_threads; i++ )
     {
@@ -3160,8 +3163,8 @@ static int threaded_slices_write( x264_t *h )
             memcpy( &t->i_frame, &h->i_frame, offsetof(x264_t, rc) - offsetof(x264_t, i_frame) );
         }
         int height = h->mb.i_mb_height >> PARAM_INTERLACED;
-        t->i_threadslice_start = ((height *  i    + h->param.i_slice_count/2) / h->param.i_threads) << PARAM_INTERLACED;
-        t->i_threadslice_end   = ((height * (i+1) + h->param.i_slice_count/2) / h->param.i_threads) << PARAM_INTERLACED;
+        t->i_threadslice_start = ((height *  i    + round_bias) / h->param.i_threads) << PARAM_INTERLACED;
+        t->i_threadslice_end   = ((height * (i+1) + round_bias) / h->param.i_threads) << PARAM_INTERLACED;
         t->sh.i_first_mb = t->i_threadslice_start * h->mb.i_mb_width;
         t->sh.i_last_mb  =   t->i_threadslice_end * h->mb.i_mb_width - 1;
     }
