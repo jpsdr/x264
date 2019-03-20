@@ -1417,15 +1417,15 @@ AVX_INSTR cmpunordpd, sse2, 1, 0, 1
 AVX_INSTR cmpunordps, sse, 1, 0, 1
 AVX_INSTR cmpunordsd, sse2, 1, 0, 0
 AVX_INSTR cmpunordss, sse, 1, 0, 0
-AVX_INSTR comisd, sse2
-AVX_INSTR comiss, sse
-AVX_INSTR cvtdq2pd, sse2
-AVX_INSTR cvtdq2ps, sse2
-AVX_INSTR cvtpd2dq, sse2
-AVX_INSTR cvtpd2ps, sse2
-AVX_INSTR cvtps2dq, sse2
-AVX_INSTR cvtps2pd, sse2
-AVX_INSTR cvtsd2si, sse2
+AVX_INSTR comisd, sse2, 1
+AVX_INSTR comiss, sse, 1
+AVX_INSTR cvtdq2pd, sse2, 1
+AVX_INSTR cvtdq2ps, sse2, 1
+AVX_INSTR cvtpd2dq, sse2, 1
+AVX_INSTR cvtpd2ps, sse2, 1
+AVX_INSTR cvtps2dq, sse2, 1
+AVX_INSTR cvtps2pd, sse2, 1
+AVX_INSTR cvtsd2si, sse2, 1
 AVX_INSTR cvtsd2ss, sse2, 1, 0, 0
 AVX_INSTR cvtsi2sd, sse2, 1, 0, 0
 AVX_INSTR cvtsi2ss, sse, 1, 0, 0
@@ -1451,7 +1451,7 @@ AVX_INSTR hsubpd, sse3, 1, 0, 0
 AVX_INSTR hsubps, sse3, 1, 0, 0
 AVX_INSTR insertps, sse4, 1, 1, 0
 AVX_INSTR lddqu, sse3
-AVX_INSTR ldmxcsr, sse
+AVX_INSTR ldmxcsr, sse, 1
 AVX_INSTR maskmovdqu, sse2
 AVX_INSTR maxpd, sse2, 1, 0, 1
 AVX_INSTR maxps, sse, 1, 0, 1
