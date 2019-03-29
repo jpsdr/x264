@@ -79,8 +79,11 @@ enum
 
 enum
 {
-    FLV_CODECID_MP3 = 2 << FLV_AUDIO_CODECID_OFFSET,
-    FLV_CODECID_AAC = 10<< FLV_AUDIO_CODECID_OFFSET,
+    FLV_CODECID_RAW   = 0  << FLV_AUDIO_CODECID_OFFSET,
+    FLV_CODECID_ADPCM = 1  << FLV_AUDIO_CODECID_OFFSET,
+    FLV_CODECID_MP3   = 2  << FLV_AUDIO_CODECID_OFFSET,
+    FLV_CODECID_PCM   = 3  << FLV_AUDIO_CODECID_OFFSET,
+    FLV_CODECID_AAC   = 10 << FLV_AUDIO_CODECID_OFFSET,
 };
 
 enum
@@ -135,5 +138,6 @@ void flv_put_be24( flv_buffer *c, uint32_t val );
 void flv_put_tag( flv_buffer *c, const char *tag );
 void flv_put_amf_string( flv_buffer *c, const char *str );
 void flv_put_amf_double( flv_buffer *c, double d );
+void flv_put_amf_bool( flv_buffer *c, int i );
 
 #endif
