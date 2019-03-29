@@ -1175,6 +1175,11 @@ static int validate_parameters( x264_t *h, int b_open )
         h->param.analyse.intra &= ~X264_ANALYSE_I8x8;
     }
     h->param.analyse.i_trellis = x264_clip3( h->param.analyse.i_trellis, 0, 2 );
+    if( h->param.analyse.i_weighted_pred == X264_WEIGHTP_NONE )
+        h->param.rc.f_fade_compensate += 0.1;
+    if( !h->param.rc.b_mb_tree )
+        h->param.rc.f_fade_compensate = 0;
+
     h->param.rc.i_aq_mode = x264_clip3( h->param.rc.i_aq_mode, 0, 3 );
     h->param.rc.f_aq_strength = x264_clip3f( h->param.rc.f_aq_strength, 0, 3 );
     if( h->param.rc.f_aq_strength == 0 )
@@ -1213,6 +1218,7 @@ static int validate_parameters( x264_t *h, int b_open )
     {
         h->param.analyse.f_psy_rd = 0;
         h->param.analyse.f_psy_trellis = 0;
+		h->param.rc.f_fade_compensate = 0;
     }
     h->param.analyse.f_psy_rd = x264_clip3f( h->param.analyse.f_psy_rd, 0, 10 );
     h->param.analyse.f_psy_trellis = x264_clip3f( h->param.analyse.f_psy_trellis, 0, 10 );
