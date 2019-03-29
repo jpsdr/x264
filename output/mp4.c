@@ -176,6 +176,9 @@ static int open_file( char *psz_filename, hnd_t *p_handle, cli_output_opt_t *opt
     mp4_hnd_t *p_mp4 = calloc( 1, sizeof(mp4_hnd_t) );
     if( !p_mp4 )
         return -1;
+	
+    FAIL_IF_ERR( audio_enc && ( strcmp( audio_enc, "none" ) && strcmp( audio_enc, "auto" ) ), "mp4",
+                 "audio is not yet supported on this muxer\n" );
 
 #ifdef _WIN32
     /* GPAC doesn't support Unicode filenames. */

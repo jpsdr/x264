@@ -52,6 +52,10 @@
 
 #define FAIL_IF_ERROR( cond, ... ) FAIL_IF_ERR( cond, "avs", __VA_ARGS__ )
 
+#if HAVE_AUDIO
+#include "audio/audio.h"
+#endif
+
 /* AVS uses a versioned interface to control backwards compatibility */
 /* YV12 support is required, which was added in 2.5 */
 #define AVS_INTERFACE_25 2
@@ -122,6 +126,10 @@ typedef struct
         AVSC_DECLARE_FUNC( avs_bits_per_component );
 #endif
     } func;
+#if HAVE_AUDIO
+    char *filename;
+    int has_audio;
+#endif
 } avs_hnd_t;
 
 /* load the library and functions we require from it */
@@ -338,6 +346,12 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
     h->clip = h->func.avs_take_clip( res, h->env );
     const AVS_VideoInfo *vi = h->func.avs_get_video_info( h->clip );
     FAIL_IF_ERROR( !avs_has_video( vi ), "`%s' has no video data\n", psz_filename );
+	
+#if HAVE_AUDIO
+    h->filename = strdup( psz_filename );
+    h->has_audio = !!avs_has_audio( vi );
+#endif
+
     /* if the clip is made of fields instead of frames, call weave to make them frames */
     if( avs_is_field_based( vi ) )
     {
@@ -538,8 +552,23 @@ static int close_file( hnd_t handle )
         h->func.avs_delete_script_environment( h->env );
     if( h->library )
         avs_close( h->library );
+#if HAVE_AUDIO
+    free( h->filename );
+#endif
     free( h );
     return 0;
 }
 
+#if HAVE_AUDIO
+static hnd_t open_audio( hnd_t handle, int track )
+{
+    avs_hnd_t *h = handle;
+    if( !h->has_audio )
+        return NULL;
+    return x264_audio_open_from_file( "avs", h->filename, track );
+}
+
+const cli_input_t avs_input = { open_file, picture_alloc, read_frame, release_frame, picture_clean, close_file, open_audio };
+#else
 const cli_input_t avs_input = { open_file, picture_alloc, read_frame, release_frame, picture_clean, close_file };
+#endif
