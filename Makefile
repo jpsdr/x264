@@ -35,7 +35,8 @@ SRCCLI = x264.c autocomplete.c input/input.c input/timecode.c input/raw.c \
          output/flv.c output/flv_bytestream.c filters/filters.c \
          filters/video/video.c filters/video/source.c filters/video/internal.c \
          filters/video/resize.c filters/video/fix_vfr_pts.c \
-         filters/video/select_every.c filters/video/crop.c
+         filters/video/select_every.c filters/video/crop.c \
+		 audio/audio.c audio/encoders.c filters/audio/audio_filters.c filters/audio/internal.c
 
 SRCCLI_X = filters/video/cache.c filters/video/depth.c
 
@@ -80,6 +81,36 @@ endif
 
 ifneq ($(findstring HAVE_GPAC 1, $(CONFIG)),)
 SRCCLI += output/mp4.c
+endif
+
+ifneq ($(findstring HAVE_AUDIO 1, $(CONFIG)),)
+SRCCLI += audio/encoders/enc_raw.c
+ifneq ($(findstring HAVE_LAVF 1, $(CONFIG)),)
+SRCCLI += input/audio/lavf.c
+SRCCLI += audio/encoders/enc_lavc.c
+endif
+ifneq ($(findstring HAVE_AVS 1, $(CONFIG)),)
+SRCCLI += input/audio/avs.c
+endif
+ifneq ($(findstring HAVE_LSMASH 1, $(CONFIG)),)
+SRCCLI += input/audio/lsmash.c
+endif
+endif
+
+ifneq ($(findstring HAVE_LAME 1, $(CONFIG)),)
+SRCCLI += audio/encoders/enc_mp3lame.c
+endif
+
+ifneq ($(findstring HAVE_QT_AAC 1, $(CONFIG)),)
+SRCCLI += audio/encoders/enc_qtaac.c
+endif
+
+ifneq ($(findstring HAVE_FAAC 1, $(CONFIG)),)
+SRCCLI += audio/encoders/enc_faac.c
+endif
+
+ifneq ($(findstring HAVE_AMRWB_3GPP 1, $(CONFIG)),)
+SRCCLI += audio/encoders/enc_amrwb_3gpp.c
 endif
 
 ifneq ($(findstring HAVE_LSMASH 1, $(CONFIG)),)
