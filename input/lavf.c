@@ -219,6 +219,7 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
     if( !h->lavc )
         return -1;
 
+    AVCodecContext *c  = h->lavf->streams[i]->codec;
     info->fps_num      = h->lavf->streams[i]->avg_frame_rate.num;
     info->fps_den      = h->lavf->streams[i]->avg_frame_rate.den;
     info->timebase_num = h->lavf->streams[i]->time_base.num;
@@ -226,6 +227,10 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
     /* lavf is thread unsafe as calling av_read_frame invalidates previously read AVPackets */
     info->thread_safe  = 0;
     h->vfr_input       = info->vfr;
+	
+    if( opt->demuxer_threads > 1 )
+        c->thread_count = opt->demuxer_threads;
+
     FAIL_IF_ERROR( avcodec_open2( h->lavc, avcodec_find_decoder( h->lavc->codec_id ), NULL ),
                    "could not find decoder for video stream\n" );
 
