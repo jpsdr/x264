@@ -202,6 +202,7 @@ typedef struct x264_nal_t
 #define X264_B_PYRAMID_NORMAL        2
 #define X264_KEYINT_MIN_AUTO         0
 #define X264_KEYINT_MAX_INFINITE     (1<<30)
+#define X264_LEVEL_IDC_AUTO          (-1)
 
 /* AVC-Intra flavors */
 #define X264_AVCINTRA_FLAVOR_PANASONIC 0
@@ -296,6 +297,18 @@ typedef struct x264_zone_t
     float f_bitrate_factor;
     struct x264_param_t *param;
 } x264_zone_t;
+
+/* Auto VBV*/
+#define X264_VBV_MAXRATE_HIGH444 -5 /* Set the VBV maxrate to fit in the target level of High 4:4:4 Predictive Profile */
+#define X264_VBV_MAXRATE_HIGH422 -4 /* Set the VBV maxrate to fit in the target level of High 4:2:2 Profile */
+#define X264_VBV_MAXRATE_HIGH10  -3 /* Set the VBV maxrate to fit in the target level of High 10 Profile */
+#define X264_VBV_MAXRATE_HIGH    -2 /* Set the VBV maxrate to fit in the target level of High Profile */
+#define X264_VBV_MAXRATE_MAIN    -1 /* Set the VBV maxrate to fit in the target level of Main Profile */
+#define X264_VBV_BUFSIZE_HIGH444 -5 /* Set the VBV bufsize to fit in the target level of High 4:4:4 Predictive Profile */
+#define X264_VBV_BUFSIZE_HIGH422 -4 /* Set the VBV bufsize to fit in the target level of High 4:2:2 Profile */
+#define X264_VBV_BUFSIZE_HIGH10  -3 /* Set the VBV bufsize to fit in the target level of High 10 Profile */
+#define X264_VBV_BUFSIZE_HIGH    -2 /* Set the VBV bufsize to fit in the target level of High Profile */
+#define X264_VBV_BUFSIZE_MAIN    -1 /* Set the VBV bufsize to fit in the target level of Main Profile */
 
 typedef struct x264_param_t
 {
