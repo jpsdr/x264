@@ -37,7 +37,8 @@ SRCCLI = x264.c autocomplete.c input/input.c input/timecode.c input/raw.c \
          filters/video/video.c filters/video/source.c filters/video/internal.c \
          filters/video/resize.c filters/video/fix_vfr_pts.c \
          filters/video/select_every.c filters/video/crop.c \
-		 audio/audio.c audio/encoders.c filters/audio/audio_filters.c filters/audio/internal.c
+		 audio/audio.c audio/encoders.c filters/audio/audio_filters.c filters/audio/internal.c \
+		 filters/video/hqdn3d.c filters/video/pad.c filters/video/vflip.c
 
 SRCCLI_X = filters/video/cache.c filters/video/depth.c
 
@@ -57,6 +58,16 @@ OBJCHK_10 =
 OBJEXAMPLE =
 
 CONFIG := $(shell cat config.h)
+
+# GPL-only files
+ifneq ($(findstring HAVE_GPL 1, $(CONFIG)),)
+SRCCLI += filters/video/yadif.c filters/video/yadif_filter_line.c
+
+ifeq ($(SYS_ARCH),X86)
+SRCCLI += filters/video/x86/yadif_filter_line.c
+endif
+
+endif
 
 # Optional module sources
 ifneq ($(findstring HAVE_AVS 1, $(CONFIG)),)
