@@ -695,6 +695,7 @@ static void help( x264_param_t *defaults, int longhelp )
         "                                    Support for bit depth 8-10.\n"
         "                                    Support for 4:2:0/4:2:2/4:4:4 chroma subsampling.\n" );
     else H0( "                                  - %s\n", stringify_names( buf, x264_valid_profile_names ) );
+    H1( "      --profile-force         Do not automatically decrease profile settings\n" );
     H0( "      --preset <string>       Use a preset to select encoding settings [medium]\n"
         "                                  Overridden by user settings.\n" );
     H2( "                                  - ultrafast:\n"
@@ -1211,6 +1212,7 @@ static struct option long_options[] =
     { "fullhelp",          no_argument, NULL, OPT_FULLHELP },
     { "version",           no_argument, NULL, 'V' },
     { "profile",     required_argument, NULL, OPT_PROFILE },
+    { "profile-force",     no_argument, NULL, 0 },
     { "preset",      required_argument, NULL, OPT_PRESET },
     { "tune",        required_argument, NULL, OPT_TUNE },
     { "slow-firstpass",    no_argument, NULL, OPT_SLOWFIRSTPASS },
