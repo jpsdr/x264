@@ -289,9 +289,32 @@ static int  parse( int argc, char **argv, x264_param_t *param, cli_opt_t *opt );
 static int  encode( x264_param_t *param, cli_opt_t *opt );
 
 /* logging and printing for within the cli system */
+static char *psz_log_file       = NULL;
+static int   cli_log_file_level = -1;
+
+static inline void x264_log_done()
+{
+    if( psz_log_file ) free( psz_log_file );
+    psz_log_file = NULL;
+}
+
+static inline void x264_log_init( const char *file_name )
+{
+    x264_log_done();
+    psz_log_file = strdup( file_name );
+}
+
 static int cli_log_level = X264_LOG_INFO;
 void x264_cli_log( const char *name, int i_level, const char *fmt, ... )
 {
+    if( psz_log_file && *psz_log_file && i_level <= cli_log_file_level )
+    {
+        va_list arg;
+        va_start( arg, fmt );
+        x264_cli_log_file( psz_log_file, i_level, fmt, arg );
+        va_end( arg );
+    }
+
     if( i_level > cli_log_level )
         return;
     char *s_level;
@@ -320,8 +343,46 @@ void x264_cli_log( const char *name, int i_level, const char *fmt, ... )
     va_end( arg );
 }
 
+void x264_cli_log_file( char *p_file_name, int i_level, const char *psz_fmt, va_list arg )
+{
+    char *psz_prefix;
+    switch( i_level )
+    {
+        case X264_LOG_ERROR:
+            psz_prefix = "error";
+            break;
+        case X264_LOG_WARNING:
+            psz_prefix = "warning";
+            break;
+        case X264_LOG_INFO:
+            psz_prefix = "info";
+            break;
+        case X264_LOG_DEBUG:
+            psz_prefix = "debug";
+            break;
+        default:
+            psz_prefix = "unknown";
+            break;
+    }
+    FILE *p_log_file = x264_fopen( p_file_name, "ab" );
+    if( p_log_file )
+    {
+        fprintf( p_log_file, "x264 [%s]: ", psz_prefix );
+        x264_vfprintf( p_log_file, psz_fmt, arg );
+        fclose( p_log_file );
+    }
+ }
+ 
 void x264_cli_printf( int i_level, const char *fmt, ... )
 {
+    if( psz_log_file && *psz_log_file )
+    {
+        va_list arg;
+        va_start( arg, fmt );
+        x264_cli_log_file( psz_log_file, X264_LOG_INFO, fmt, arg );
+        va_end( arg );
+    }
+
     if( i_level > cli_log_level )
         return;
     va_list arg;
@@ -441,6 +502,7 @@ REALIGN_STACK int main( int argc, char **argv )
     free( argv );
 #endif
 
+	x264_log_done();
     return ret;
 }
 
@@ -1027,6 +1089,10 @@ static void help( x264_param_t *defaults, int longhelp )
         "                                  - %s\n", strtable_lookup( x264_log_level_names, cli_log_level - X264_LOG_NONE ),
                                        stringify_names( buf, x264_log_level_names ) );
     H2( "      --stylish               r2204 style progress indicator\n");
+    H1( "      --log-file <string>     Save log to file\n" );
+    H1( "      --log-file-level <int>  Log-file level information [\"%s\"]\n"
+        "                                  - %s\n", strtable_lookup( x264_log_level_names, defaults->i_log_file_level - X264_LOG_NONE ),
+                                       stringify_names( buf, x264_log_level_names ) );
     H1( "      --psnr                  Enable PSNR computation\n" );
     H1( "      --ssim                  Enable SSIM computation\n" );
     H1( "      --threads <integer>     Force a specific number of threads\n" );
@@ -1108,6 +1174,8 @@ typedef enum
     OPT_PULLDOWN,
     OPT_LOG_LEVEL,
     OPT_STYLISH,
+    OPT_LOG_FILE,
+    OPT_LOG_FILE_LEVEL,
     OPT_DEMUXER_THREADS,
     OPT_VIDEO_FILTER,
     OPT_INPUT_FMT,
@@ -1264,6 +1332,8 @@ static struct option long_options[] =
     { "verbose",              no_argument,       NULL, 'v' },
     { "log-level",            required_argument, NULL, OPT_LOG_LEVEL },
     { "stylish",           no_argument, NULL, OPT_STYLISH },
+    { "log-file",             required_argument, NULL, OPT_LOG_FILE },
+    { "log-file-level",       required_argument, NULL, OPT_LOG_FILE_LEVEL },
     { "no-progress",          no_argument,       NULL, OPT_NOPROGRESS },
     { "dump-yuv",             required_argument, NULL, 0 },
     { "sps-id",               required_argument, NULL, 0 },
@@ -1301,7 +1371,8 @@ static struct option long_options[] =
     { "fake-interlaced",      no_argument,       NULL, 0 },
     { "frame-packing",        required_argument, NULL, 0 },
     { "mastering-display",    required_argument, NULL, 0 },
-    { "cll",                  required_argument, NULL, 0 },    { "alternative-transfer", required_argument, NULL, 0 },
+    { "cll",                  required_argument, NULL, 0 },
+    { "alternative-transfer", required_argument, NULL, 0 },
     { "vf",                   required_argument, NULL, OPT_VIDEO_FILTER },
     { "video-filter",         required_argument, NULL, OPT_VIDEO_FILTER },
     { "input-fmt",            required_argument, NULL, OPT_INPUT_FMT },
@@ -1653,6 +1724,7 @@ static int parse( int argc, char **argv, x264_param_t *param, cli_opt_t *opt )
 
     x264_param_default( &defaults );
     cli_log_level = defaults.i_log_level;
+	cli_log_file_level = defaults.i_log_file_level;
 
     memset( &input_opt, 0, sizeof(cli_input_opt_t) );
     memset( &output_opt, 0, sizeof(cli_output_opt_t) );
@@ -1738,6 +1810,15 @@ static int parse( int argc, char **argv, x264_param_t *param, cli_opt_t *opt )
             case OPT_STYLISH:
                 param->b_stylish = 1;
                 break;
+            case OPT_LOG_FILE:
+                x264_log_init( optarg );
+                goto generic_option;
+            case OPT_LOG_FILE_LEVEL:
+                if( !parse_enum_value( optarg, x264_log_level_names, &cli_log_file_level ) )
+                    cli_log_file_level += X264_LOG_NONE;
+                else
+                    cli_log_file_level = atoi( optarg );
+                goto generic_option;
             case OPT_NOPROGRESS:
                 opt->b_progress = 0;
                 break;
@@ -2025,7 +2106,7 @@ generic_option:
     {
         if( thread_input->open_file( NULL, &opt->hin, &info, NULL ) )
         {
-            fprintf( stderr, "x264 [error]: threaded input failed\n" );
+			x264_cli_log( "x264", X264_LOG_ERROR, "threaded input failed\n" );
             return -1;
         }
         cli_input = *thread_input;
@@ -2455,7 +2536,7 @@ fail:
     fprintf( stderr, "\n" );
 
     if( b_ctrl_c )
-        fprintf( stderr, "aborted at input frame %d, output frame %d\n", opt->i_seek + i_frame, i_frame_output );
+		x264_cli_printf( X264_LOG_INFO, "aborted at input frame %d, output frame %d\n", opt->i_seek + i_frame, i_frame_output );
 
     cli_output.close_file( opt->hout, largest_pts, second_largest_pts );
     opt->hout = NULL;
@@ -2465,7 +2546,7 @@ fail:
         double fps = (double)i_frame_output * (double)1000000 /
                      (double)( i_end - i_start );
 
-        fprintf( stderr, "encoded %d frames, %.2f fps, %.2f kb/s\n", i_frame_output, fps,
+        x264_cli_printf( X264_LOG_INFO, "encoded %d frames, %.2f fps, %.2f kb/s\n", i_frame_output, fps,
                  (double) i_file * 8 / ( 1000 * duration ) );
     }
 

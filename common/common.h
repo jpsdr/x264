@@ -136,6 +136,8 @@
 /* log */
 #define x264_log x264_template(log)
 void x264_log( x264_t *h, int i_level, const char *psz_fmt, ... );
+#define x264_log_file x264_template(log_file)
+void x264_log_file( char *p_file_name, int i_level, const char *psz_fmt, va_list arg );
 
 #define x264_cavlc_init x264_template(cavlc_init)
 void x264_cavlc_init( x264_t *h );
