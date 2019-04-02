@@ -369,6 +369,7 @@ REALIGN_STACK void x264_param_default( x264_param_t *param )
     param->p_log_private = NULL;
     param->i_log_level = X264_LOG_INFO;
 	param->b_stylish = 0;
+	param->i_log_file_level = X264_LOG_INFO;
 
     /* */
     param->analyse.intra = X264_ANALYSE_I4x4 | X264_ANALYSE_I8x8;
@@ -1135,6 +1136,13 @@ REALIGN_STACK int x264_param_parse( x264_param_t *p, const char *name, const cha
     }
     OPT("log")
         p->i_log_level = atoi(value);
+    OPT("log-file")
+        p->psz_log_file = strdup(value);
+    OPT("log-file-level")
+        if( !parse_enum( value, x264_log_level_names, &p->i_log_file_level ) )
+            p->i_log_file_level += X264_LOG_NONE;
+        else
+            p->i_log_file_level = atoi(value);
     OPT("dump-yuv")
         p->psz_dump_yuv = strdup(value);
     OPT2("analyse", "partitions")
