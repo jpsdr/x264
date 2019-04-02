@@ -222,6 +222,7 @@ static const char * const x264_colmatrix_names[] = { "GBR", "bt709", "undef", ""
                                                      "smpte2085", "chroma-derived-nc", "chroma-derived-c", "ICtCp", 0 };
 static const char * const x264_nal_hrd_names[] = { "none", "vbr", "cbr", 0 };
 static const char * const x264_avcintra_flavor_names[] = { "panasonic", "sony", 0 };
+extern const char * const x264_log_level_names[];
 
 /* Colorspace type */
 #define X264_CSP_MASK           0x00ff  /* */
@@ -397,6 +398,8 @@ typedef struct x264_param_t
     void        (*pf_log)( void *, int i_level, const char *psz, va_list );
     void        *p_log_private;
     int         i_log_level;
+    int         i_log_file_level;
+    char        *psz_log_file;
     int         b_full_recon;   /* fully reconstruct frames, even when not necessary for encoding.  Implied by psz_dump_yuv */
 	int         b_stylish;
     char        *psz_dump_yuv;  /* filename (in UTF-8) for reconstructed frames */
