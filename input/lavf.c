@@ -251,6 +251,12 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
     info->sar_height = h->lavc->sample_aspect_ratio.den;
     info->sar_width  = h->lavc->sample_aspect_ratio.num;
     info->fullrange |= h->lavc->color_range == AVCOL_RANGE_JPEG;
+	
+    /* -1 = 'unset' (internal) , 2 from lavf|ffms = 'unset' */
+    if( h->lavc->colorspace >= 0 && h->lavc->colorspace <= 8 && h->lavc->colorspace != 2 )
+        info->colormatrix = h->lavc->colorspace;
+    else
+        info->colormatrix = -1;
 
     /* avisynth stores rgb data vertically flipped. */
     if( !strcasecmp( get_filename_extension( psz_filename ), "avs" ) &&
