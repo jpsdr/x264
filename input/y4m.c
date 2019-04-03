@@ -39,6 +39,7 @@ typedef struct
     int bit_depth;
     cli_mmap_t mmap;
     int use_mmap;
+	int x264_bit_depth;
 } y4m_hnd_t;
 
 #define Y4M_MAGIC "YUV4MPEG2"
@@ -108,6 +109,7 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
     /* Scan properties */
     header_end = &header[i+1]; /* Include space */
     h->seq_header_len = i+1;
+	h->x264_bit_depth = opt->x264_bit_depth;
     for( char *tokstart = header + sizeof(Y4M_MAGIC); tokstart < header_end; tokstart++ )
     {
         if( *tokstart == 0x20 )
@@ -207,7 +209,14 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
     info->csp         = colorspace;
 
     if( h->bit_depth > 8 )
+	{
         info->csp |= X264_CSP_HIGH_DEPTH;
+        if( h->bit_depth == opt->x264_bit_depth )
+        {
+            /* HACK: totally skips depth filter to prevent dither error */
+            info->csp |= X264_CSP_SKIP_DEPTH_FILTER;
+        }
+	}
 
     const x264_cli_csp_t *csp = x264_cli_get_csp( info->csp );
 
@@ -288,7 +297,7 @@ static int read_frame_internal( cli_pic_t *pic, y4m_hnd_t *h, int bit_depth_uc )
         else if( fread( pic->img.plane[i], pixel_depth, h->plane_size[i], h->fh ) != (uint64_t)h->plane_size[i] )
             return -1;
 
-        if( bit_depth_uc )
+        if( bit_depth_uc && h->bit_depth != h->x264_bit_depth )
         {
             /* upconvert non 16bit high depth planes to 16bit using the same
              * algorithm as used in the depth filter. */
