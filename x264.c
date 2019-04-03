@@ -2021,7 +2021,8 @@ generic_option:
             return -1;
         }
     }
-	output_opt.x264_bit_depth=param->i_bitdepth;
+	input_opt.x264_bit_depth = param->i_bitdepth;
+	output_opt.x264_bit_depth = param->i_bitdepth;
 
     /* If first pass mode is used, apply faster settings. */
     if( b_turbo )
