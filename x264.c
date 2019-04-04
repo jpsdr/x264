@@ -429,8 +429,29 @@ static void print_version_info( void )
 #else
     printf( "using an unknown compiler\n" );
 #endif
-    printf( "x264 configuration: --chroma-format=%s\n", chroma_format_names[X264_CHROMA_FORMAT] );
-    printf( "libx264 configuration: --chroma-format=%s\n", chroma_format_names[x264_chroma_format] );
+#if HAVE_OPENCL
+#if HAVE_BITDEPTH8 && HAVE_BITDEPTH10
+    printf( "x264 configuration: --chroma-format=%s--enable-opencl\n", chroma_format_names[X264_CHROMA_FORMAT] );
+    printf( "libx264 configuration: --chroma-format=%s--enable-opencl\n", chroma_format_names[x264_chroma_format] );
+#elif HAVE_BITDEPTH8
+    printf( "x264 configuration: --bit-depth=8 --chroma-format=%s--enable-opencl\n", chroma_format_names[X264_CHROMA_FORMAT] );
+    printf( "libx264 configuration: --bit-depth=8 --chroma-format=%s--enable-opencl\n", chroma_format_names[x264_chroma_format] );
+#else
+    printf( "x264 configuration: --bit-depth=10 --chroma-format=%s--enable-opencl\n", chroma_format_names[X264_CHROMA_FORMAT] );
+    printf( "libx264 configuration: --bit-depth=10 --chroma-format=%s--enable-opencl\n", chroma_format_names[x264_chroma_format] );
+#endif	
+#else
+#if HAVE_BITDEPTH8 && HAVE_BITDEPTH10
+    printf( "x264 configuration: --chroma-format=%s--disable-opencl\n", chroma_format_names[X264_CHROMA_FORMAT] );
+    printf( "libx264 configuration: --chroma-format=%s--disable-opencl\n", chroma_format_names[x264_chroma_format] );
+#elif HAVE_BITDEPTH8
+    printf( "x264 configuration: --bit-depth=8 --chroma-format=%s--disable-opencl\n", chroma_format_names[X264_CHROMA_FORMAT] );
+    printf( "libx264 configuration: --bit-depth=8 --chroma-format=%s--disable-opencl\n", chroma_format_names[x264_chroma_format] );
+#else
+    printf( "x264 configuration: --bit-depth=10 --chroma-format=%s--disable-opencl\n", chroma_format_names[X264_CHROMA_FORMAT] );
+    printf( "libx264 configuration: --bit-depth=10 --chroma-format=%s--disable-opencl\n", chroma_format_names[x264_chroma_format] );
+#endif	
+#endif
     printf( "x264 license: " );
 #if HAVE_NONFREE
     printf( "Non-Free\n" );
