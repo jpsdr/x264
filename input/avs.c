@@ -194,7 +194,7 @@ static void avs_build_filter_sequence( char *filename_ext, const char *filter[AV
 {
     int i = 0;
 #if SYS_WINDOWS || SYS_CYGWIN
-    const char *all_purpose[] = { "FFmpegSource2", "DSS2", "DirectShowSource", 0 };
+    const char *all_purpose[] = { "LWLibavVideoSource", "FFmpegSource2", "DSS2", "DirectShowSource", 0 };
     if( !strcasecmp( filename_ext, "vpy" ) )
         filter[i++] = "VSImport";
     if( !strcasecmp( filename_ext, "avi" ) || !strcasecmp( filename_ext, "vpy" ) )
@@ -202,6 +202,9 @@ static void avs_build_filter_sequence( char *filename_ext, const char *filter[AV
         filter[i++] = "AVISource";
         filter[i++] = "HBVFWSource";
     }
+    if( !strcasecmp( filename_ext, "mp4" ) || !strcasecmp( filename_ext, "mov" ) || !strcasecmp( filename_ext, "qt" ) ||
+        !strcasecmp( filename_ext, "3gp" ) || !strcasecmp( filename_ext, "3g2" ) )
+        filter[i++] = "LSMASHVideoSource";
     if( !strcasecmp( filename_ext, "d2v" ) )
         filter[i++] = "MPEG2Source";
     if( !strcasecmp( filename_ext, "dga" ) )
