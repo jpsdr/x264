@@ -49,6 +49,7 @@ typedef struct
     int output_range; /* user desired output range */
     int input_range; /* user override input range */
 	int demuxer_threads;
+	int b_accurate_fps;
 	int x264_bit_depth;
 } cli_input_opt_t;
 
