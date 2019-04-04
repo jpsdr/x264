@@ -229,6 +229,9 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
     /* lavf is thread unsafe as calling av_read_frame invalidates previously read AVPackets */
     info->thread_safe  = 0;
     h->vfr_input       = info->vfr;
+
+    if( !opt->b_accurate_fps )
+        x264_ntsc_fps( &info->fps_num, &info->fps_den );
 	
     if( opt->demuxer_threads > 1 )
         h->lavc->thread_count = opt->demuxer_threads;
