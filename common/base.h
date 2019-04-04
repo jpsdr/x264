@@ -257,6 +257,7 @@ static ALWAYS_INLINE uint16_t x264_cabac_mvd_sum( uint8_t *mvdleft, uint8_t *mvd
  ****************************************************************************/
 X264_API void x264_reduce_fraction( uint32_t *n, uint32_t *d );
 X264_API void x264_reduce_fraction64( uint64_t *n, uint64_t *d );
+void x264_ntsc_fps( uint32_t *fps_num, uint32_t *fps_den );
 
 X264_API void x264_log_default( void *p_unused, int i_level, const char *psz_fmt, va_list arg );
 X264_API void x264_log_internal( int i_level, const char *psz_fmt, ... );
