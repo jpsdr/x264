@@ -226,10 +226,11 @@ static x264_frame_t *frame_new( x264_t *h, int b_fdec )
             if( h->frames.b_have_lowres )
                 PREALLOC( frame->i_inv_qscale_factor, i_mb_count * sizeof(uint16_t) );
         }
-
-        /* mbtree asm can overread the input buffers, make sure we don't read outside of allocated memory. */
-        if( h->frames.b_have_lowres )
-            prealloc_size += NATIVE_ALIGN;
+        if( h->param.rc.i_aq3_mode )
+        {
+            PREALLOC( frame->f_qp_offset3, i_mb_count * sizeof(float) );
+            PREALLOC( frame->f_qp_offset_aq3, i_mb_count * sizeof(float) );
+        }
     }
 
     PREALLOC_END( frame->base );
