@@ -1231,6 +1231,7 @@ static void help( x264_param_t *defaults, int longhelp )
         "                                  - %s\n", x264_muxer_names[0], stringify_names( buf, x264_muxer_names ) );
     H1( "      --demuxer <string>      Specify input container format [\"%s\"]\n"
         "                                  - %s\n", x264_demuxer_names[0], stringify_names( buf, x264_demuxer_names ) );
+    H2( "      --decoder <string>      Specify decoder in lavf for input video\n" );
     H1( "      --input-fmt <string>    Specify input file format (requires lavf support)\n" );
     H1( "      --input-csp <string>    Specify input colorspace format for raw input\n" );
     print_csp_names( longhelp );
@@ -1350,6 +1351,7 @@ typedef enum
     OPT_FPS,
     OPT_MUXER,
     OPT_DEMUXER,
+    OPT_DECODER,
     OPT_INDEX,
     OPT_INTERLACED,
     OPT_NO_FPS_CORRECTION,
@@ -1453,6 +1455,7 @@ static struct option long_options[] =
     { "output",      required_argument, NULL, 'o' },
     { "muxer",       required_argument, NULL, OPT_MUXER },
     { "demuxer",     required_argument, NULL, OPT_DEMUXER },
+    { "decoder",     required_argument, NULL, OPT_DECODER },
     { "stdout",      required_argument, NULL, OPT_MUXER },
     { "stdin",       required_argument, NULL, OPT_DEMUXER },
     { "index",       required_argument, NULL, OPT_INDEX },
@@ -1992,6 +1995,9 @@ static int parse( int argc, char **argv, x264_param_t *param, cli_opt_t *opt )
                 break;
             case OPT_DEMUXER:
                 FAIL_IF_ERROR( parse_enum_name( optarg, x264_demuxer_names, &demuxer ), "Unknown demuxer `%s'\n", optarg );
+                break;
+            case OPT_DECODER:
+                input_opt.lavf_decoder = optarg;
                 break;
             case OPT_INDEX:
                 input_opt.index_file = optarg;
