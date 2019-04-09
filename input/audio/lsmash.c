@@ -197,7 +197,7 @@ static void lsmash_close( hnd_t handle )
     if( h->importer )
         lsmash_importer_close( h->importer );
     if( h->info.opaque )
-        free( h->info.opaque );
+		free( h->info.opaque );
 	if ( h->root )
 	    lsmash_destroy_root( h->root );
     if( h )
