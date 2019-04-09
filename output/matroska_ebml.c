@@ -387,8 +387,8 @@ int mk_write_header( mk_writer *w, const char *writing_app, int64_t timescale,
         w->def_duration[i] = w->max_frame_tc[i] = 0;
 
     if( !(c = mk_create_context( w, w->root, 0x1a45dfa3 )) ) // EBML
-        return -1;
-		
+		return -1;
+
 	j=-1;
 	for( i=1; i<=track_count; i++ )
 		if (tracks[i].type==MK_TRACK_VIDEO) j=i;
