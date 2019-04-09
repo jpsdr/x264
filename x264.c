@@ -2602,7 +2602,7 @@ static int64_t print_status( int64_t i_start, int64_t i_previous, int i_frame, i
         fprintf( stderr, "%s  \r", buf_stylish+5 );
     }
     else
-        fprintf( stderr, "%s       \r", buf+5 );
+		fprintf( stderr, "%s       \r", buf+5 );
 
 	x264_cli_set_console_title( buf ); // always use old indicator for console title
     fflush( stderr ); // needed in windows
