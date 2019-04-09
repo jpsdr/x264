@@ -1073,7 +1073,7 @@ static int validate_parameters( x264_t *h, int b_open )
         /* Don't use I-frames, because Blu-ray treats them the same as IDR. */
         h->param.i_keyint_min = 1;
         /* Due to the proliferation of broken players that don't handle dupes properly. */
-        h->param.analyse.i_weighted_pred = X264_MIN( h->param.analyse.i_weighted_pred, X264_WEIGHTP_SIMPLE );
+        //h->param.analyse.i_weighted_pred = X264_MIN( h->param.analyse.i_weighted_pred, X264_WEIGHTP_SIMPLE );
         if( h->param.b_fake_interlaced )
             h->param.b_pic_struct = 1;
     }
