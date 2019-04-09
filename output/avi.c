@@ -68,7 +68,7 @@ static int close_file( hnd_t handle, int64_t largest_pts, int64_t second_largest
     return 0;
 }
 
-static int open_file( char *psz_filename, hnd_t *p_handle, cli_output_opt_t *opt )
+static int open_file( char *psz_filename, hnd_t *p_handle, cli_output_opt_t *opt, hnd_t audio_filters, char *audio_encoder, char *audio_parameters )
 {
     avi_hnd_t *h;
     AVOutputFormat *mux_fmt;
