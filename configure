@@ -1814,7 +1814,6 @@ lto:           $lto
 debug:         $debug
 gprof:         $gprof
 strip:         $strip
-LTO:           $lto
 PIC:           $pic
 bit depth:     $bit_depth
 chroma format: $chroma_format
