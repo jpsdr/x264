@@ -83,7 +83,7 @@
             "por       %%mm5, %%mm3 \n\t" \
             "movq      %%mm3, %%mm1 \n\t"
 
-void filter_line_mmx2( struct yadif_context *yctx )
+REALIGN_STACK void filter_line_mmx2( struct yadif_context *yctx )
 {
     static const uint64_t pw_1 = 0x0001000100010001ULL;
     static const uint64_t pb_1 = 0x0101010101010101ULL;
