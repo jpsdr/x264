@@ -73,7 +73,7 @@
             "movdqa      %%xmm3, %%xmm1 \n\t"
 
 
-void FILTER_LINE_FUNC_NAME( struct yadif_context *yctx )
+REALIGN_STACK void FILTER_LINE_FUNC_NAME( struct yadif_context *yctx )
 {
     ALIGNED_16( uint8_t tmp0[16] );
     ALIGNED_16( uint8_t tmp1[16] );
