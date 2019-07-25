@@ -257,7 +257,7 @@ static int get_frame( hnd_t handle, cli_pic_t *output, int frame_out )
                 yctx.current  = cur.img.plane[i]     + y*stride;
                 yctx.next     = next.img.plane[i]    + y*stride;
                 yctx.parity   = parity^tff;
-                x264_stack_align( filter_line, &yctx );
+				filter_line(&yctx);
             }
             else
                 memcpy( output->img.plane[i]+y*stride,
