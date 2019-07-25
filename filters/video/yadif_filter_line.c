@@ -84,7 +84,7 @@
         next2++; \
     }
 
-static void filter_line_c( struct yadif_context *yctx )
+REALIGN_STACK static void filter_line_c( struct yadif_context *yctx )
 {
     int w = yctx->width;
     intptr_t refs = yctx->stride;
@@ -98,7 +98,7 @@ static void filter_line_c( struct yadif_context *yctx )
     FILTER
 }
 
-static void filter_line_c_16bit( struct yadif_context *yctx )
+REALIGN_STACK static void filter_line_c_16bit( struct yadif_context *yctx )
 {
     int w = yctx->width;
     intptr_t refs = yctx->stride;
