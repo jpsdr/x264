@@ -4,6 +4,9 @@ git rev-list HEAD | sort > config.git-hash
 LOCAL_VER=`wc -l config.git-hash | awk '{print $1}'`
 GIT_HEAD=`git branch --list | grep "*" | awk '{print $2}'`
 BIT_DEPTH=`grep "X264_BIT_DEPTH" < x264_config.h | awk '{print $3}'`
+if [ $BIT_DEPTH == "0" ] ; then
+    BIT_DEPTH="(8 & 10)"
+fi
 CHROMA_FORMATS=`grep "X264_CHROMA_FORMAT" < x264_config.h | awk '{print $3}'`
 if [ $CHROMA_FORMATS == "0" ] ; then
     CHROMA_FORMATS="all"
