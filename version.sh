@@ -38,5 +38,5 @@ else
     VER="x [${BIT_DEPTH}-bit@${CHROMA_FORMATS} ${BUILD_ARCH}]"
 fi
 rm -f config.git-hash
-API=`grep '#define X264_BUILD' < x264.h | sed -e 's/.* \([1-9][0-9]*\).*/\1/'`
+API=`grep '#define X264_BUILD' < "$(dirname "$0")"/x264.h | sed -e 's/.* \([1-9][0-9]*\).*/\1/'`
 echo "#define X264_POINTVER \"0.$API.$VER\""
