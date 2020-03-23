@@ -181,7 +181,6 @@ static cli_vid_filter_t filter;
 
 const char * const x264_avcintra_class_names[] = { "50", "100", "200", 0 };
 const char * const x264_cqm_names[] = { "flat", "jvt", 0 };
-const char * const x264_log_level_names[] = { "none", "error", "warning", "info", "debug", 0 };
 const char * const x264_partition_names[] = { "p8x8", "p4x4", "b8x8", "i8x8", "i4x4", "none", "all", 0 };
 const char * const x264_pulldown_names[] = { "none", "22", "32", "64", "double", "triple", "euro", 0 };
 const char * const x264_range_names[] = { "auto", "tv", "pc", 0 };
@@ -410,7 +409,7 @@ void x264_cli_log_file( char *p_file_name, int i_level, const char *psz_fmt, va_
         fclose( p_log_file );
     }
  }
- 
+
 void x264_cli_printf( int i_level, const char *fmt, ... )
 {
     if( psz_log_file && *psz_log_file )
@@ -473,7 +472,7 @@ static void print_version_info( void )
 #else
     printf( "x264 configuration: --bit-depth=10 --chroma-format=%s--enable-opencl\n", chroma_format_names[X264_CHROMA_FORMAT] );
     printf( "libx264 configuration: --bit-depth=10 --chroma-format=%s--enable-opencl\n", chroma_format_names[x264_chroma_format] );
-#endif	
+#endif
 #else
 #if HAVE_BITDEPTH8 && HAVE_BITDEPTH10
     printf( "x264 configuration: --chroma-format=%s--disable-opencl\n", chroma_format_names[X264_CHROMA_FORMAT] );
@@ -484,7 +483,7 @@ static void print_version_info( void )
 #else
     printf( "x264 configuration: --bit-depth=10 --chroma-format=%s--disable-opencl\n", chroma_format_names[X264_CHROMA_FORMAT] );
     printf( "libx264 configuration: --bit-depth=10 --chroma-format=%s--disable-opencl\n", chroma_format_names[x264_chroma_format] );
-#endif	
+#endif
 #endif
     printf( "x264 license: " );
 #if HAVE_NONFREE
@@ -2278,7 +2277,7 @@ generic_option:
 
     FAIL_IF_ERROR( !opt->hin && cli_input.open_file( input_filename, &opt->hin, &info, &input_opt ),
                    "could not open input file `%s'\n", input_filename );
-				   
+
     if( audio_enable )
     {
         if( audio_filename )
@@ -2330,7 +2329,7 @@ generic_option:
             info.colormatrix = 0; /* GBR */
     }
 #endif // if 0
-				  
+
     char arg[MAX_ARGS] = { 0 };
     int len = 0;
     if( audio_enable )
@@ -2420,7 +2419,7 @@ generic_option:
         info.timebase_num = i_user_timebase_num;
         info.timebase_den = i_user_timebase_den;
         info.vfr = 1;
-		
+
         /* useful for subtitles renderer
          * or other video filters which require accurate present time (= pts * timebase)
          */
@@ -2433,7 +2432,7 @@ generic_option:
     }
     if( input_opt.input_range != RANGE_AUTO )
         info.fullrange = input_opt.input_range;
-	
+
     if( b_user_colormatrix )
         info.colormatrix = param->vui.i_colmatrix;
 
@@ -2571,7 +2570,7 @@ static int64_t print_status( int64_t i_start, int64_t i_previous, int i_frame, i
         bitrate = (double) i_file * 8 / ( (double) last_ts * 1000 * param->i_timebase_num / param->i_timebase_den );
     else
         bitrate = (double) i_file * 8 / ( (double) 1000 * param->i_fps_den / param->i_fps_num );
-	
+
     int eta, eta_hh, eta_mm, eta_ss, fps_prec, bitrate_prec, file_prec, estsz_prec;
     double percentage, estsz, file_num, estsz_num;
     char *file_unit, *estsz_unit;
@@ -2601,7 +2600,7 @@ static int64_t print_status( int64_t i_start, int64_t i_previous, int i_frame, i
         sprintf( buf, "x264 %d frames: %.*f fps, %.*f kb/s, %.*f %sB",
                  i_frame, fps_prec, fps, bitrate_prec, bitrate,
                  file_prec, file_num, file_unit );
-	
+
     if( param->b_stylish )
     {
         char buf_stylish[200];
@@ -2715,7 +2714,7 @@ static int encode( x264_param_t *param, cli_opt_t *opt )
 
     if( opt->tcfile_out )
         fprintf( opt->tcfile_out, "# timecode format v2\n" );
-	
+
     time_t tm1 = time(NULL);
     x264_cli_log( "x264", X264_LOG_INFO, "started at %s", ctime(&tm1) );
 
