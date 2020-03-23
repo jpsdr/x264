@@ -249,7 +249,7 @@ static const char * const x264_colmatrix_names[] = { "GBR", "bt709", "undef", ""
                                                      "smpte2085", "chroma-derived-nc", "chroma-derived-c", "ICtCp", 0 };
 static const char * const x264_nal_hrd_names[] = { "none", "vbr", "cbr", 0 };
 static const char * const x264_avcintra_flavor_names[] = { "panasonic", "sony", 0 };
-extern const char * const x264_log_level_names[];
+static const char * const x264_log_level_names[] = { "none", "error", "warning", "info", "debug", 0 };
 
 /* Colorspace type */
 #define X264_CSP_MASK           0x00ff  /* */
