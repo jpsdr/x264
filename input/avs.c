@@ -584,7 +584,7 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
     if( !opt->b_accurate_fps )
         x264_ntsc_fps( &info->fps_num, &info->fps_den );
 
-    if( opt->bit_depth > 8 )
+    if( opt->bit_depth > 8  && !(info->csp & X264_CSP_HIGH_DEPTH) )
     {
         FAIL_IF_ERROR( info->width & 3, "avisynth 16bit hack requires that width is at least mod4\n" );
         x264_cli_log( "avs", X264_LOG_INFO, "avisynth 16bit hack enabled\n" );
