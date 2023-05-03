@@ -531,6 +531,7 @@ typedef struct x264_param_t
 
         int         i_aq_mode;      /* psy adaptive QP. (X264_AQ_*) */
         float       f_aq_strength;
+        float       f_aq_bias_strength; /* Fine-tune AQ mode 3 dark bias. */
         float       f_aq_sensitivity;
         float       f_aq_ifactor;
         float       f_aq_pfactor;
