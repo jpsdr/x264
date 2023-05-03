@@ -945,6 +945,7 @@ static void help( x264_param_t *defaults, int longhelp )
         "                                  - 3: Auto-variance AQ with bias to dark scenes\n", defaults->rc.i_aq_mode );
     H1( "      --aq-strength <float>   Reduces blocking and blurring in flat and\n"
         "                              textured areas. [%.1f]\n", defaults->rc.f_aq_strength );
+    H1( "      --aq-bias-strength <float> Adjust the bias to darks strength in AQ mode 3, effective bias is aq-strength * aq-bias-strength [%.1f]\n", defaults->rc.f_aq_bias_strength );
     H1( "      --aq-sensitivity <float> \"Center\" of AQ curve. [%.1f]\n"
         "                                  -  5: most QPs are raised\n"
         "                                  - 10: good general-use sensitivity\n"
@@ -1458,6 +1459,7 @@ static struct option long_options[] =
     { "aq-pfactor",           required_argument, NULL, 0 },
     { "aq-bfactor",           required_argument, NULL, 0 },
     { "aq-mode",              required_argument, NULL, 0 },
+    { "aq-bias-strength",     required_argument, NULL, 0 },
     { "aq2-strength",         required_argument, NULL, 0 },
     { "aq2-sensitivity",      required_argument, NULL, 0 },
     { "aq2-ifactor",          required_argument, NULL, 0 },
