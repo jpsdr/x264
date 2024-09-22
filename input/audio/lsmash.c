@@ -216,13 +216,13 @@ static audio_packet_t *get_next_au( hnd_t handle )
     out->samplecount = h->info.framelen;
     out->dts         = h->last_dts;
 
-    lsmash_sample_t sample={0};
-    lsmash_sample_alloc( &sample, h->summary->max_au_length );
+    lsmash_sample_t *sample={0};
+    lsmash_sample_alloc( sample, h->summary->max_au_length );
 
     int ret = lsmash_importer_get_access_unit( h->importer, 1, &sample );
 
-    out->size = sample.length;
-    out->data = sample.data;
+    out->size = sample->length;
+    out->data = sample->data;
 
     if( ret || !out->size )
     {

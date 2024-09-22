@@ -95,8 +95,8 @@ static int resample_audio( AVAudioResampleContext *avr, AVFrame *frame, audio_pa
         }
     int out_linesize = get_linesize( channels, frame->nb_samples, frame->format );
     int in_linesize  = get_linesize( pkt->channels, pkt->samplecount, AV_SAMPLE_FMT_FLTP );
-    if( avresample_convert( avr, (void **)frame->data, out_linesize, frame->nb_samples,
-                                 (void **)pkt->samples, in_linesize, pkt->samplecount ) < 0 )
+    if( avresample_convert( avr, (uint8_t **)((void **)frame->data), out_linesize, frame->nb_samples,
+                                 (uint8_t **)((void **)pkt->samples), in_linesize, pkt->samplecount ) < 0 )
         return -1;
 
     int planes = av_sample_fmt_is_planar( frame->format ) ? channels : 1;
