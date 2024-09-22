@@ -207,16 +207,23 @@ static void lsmash_close( hnd_t handle )
 static audio_packet_t *get_next_au( hnd_t handle )
 {
     lsmash_source_t *h = handle;
+	
+    lsmash_sample_t *sample=calloc( 1, sizeof( lsmash_sample_t ) );
+    if( !sample )
+        return NULL;
 
     audio_packet_t *out = calloc( 1, sizeof( audio_packet_t ) );
     if( !out )
-        return NULL;
+	{
+		free(sample);
+		return NULL;
+	}
     out->info        = h->info;
     out->channels    = h->info.channels;
     out->samplecount = h->info.framelen;
     out->dts         = h->last_dts;
 
-    lsmash_sample_t *sample={0};
+	*sample={0};
     lsmash_sample_alloc( sample, h->summary->max_au_length );
 
     int ret = lsmash_importer_get_access_unit( h->importer, 1, &sample );
@@ -228,12 +235,14 @@ static audio_packet_t *get_next_au( hnd_t handle )
     {
         if( !out->size )
             h->info.last_delta = lsmash_importer_get_last_delta( h->importer, 1 );
+		free(sample);
         x264_af_free_packet( out );
         return NULL;
     }
 
     h->last_dts += h->info.framelen;
     h->frame_count++;
+	free(sample);
 
     return out;
 }
