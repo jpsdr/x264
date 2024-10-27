@@ -30,20 +30,16 @@
 #if HAVE_GETAUXVAL || HAVE_ELF_AUX_INFO
 #include <sys/auxv.h>
 #endif
-#if SYS_CYGWIN || SYS_SunOS || SYS_OPENBSD
+#if HAVE_SYSCONF
 #include <unistd.h>
 #endif
-#if SYS_LINUX
-#ifdef __ANDROID__
-#include <unistd.h>
-#else
+#if SYS_LINUX && !defined(__ANDROID__)
 #include <sched.h>
-#endif
 #endif
 #if SYS_BEOS
 #include <kernel/OS.h>
 #endif
-#if SYS_MACOSX || SYS_OPENBSD || SYS_FREEBSD
+#if SYS_MACOSX || SYS_FREEBSD || SYS_NETBSD || SYS_OPENBSD
 #include <sys/types.h>
 #include <sys/sysctl.h>
 #endif
@@ -123,7 +119,7 @@ static unsigned long x264_getauxval( unsigned long type )
 #endif
 }
 
-#if (HAVE_ALTIVEC && SYS_LINUX) || (HAVE_ARMV6 && !HAVE_NEON)
+#if ((HAVE_ALTIVEC && SYS_LINUX) || (HAVE_ARMV6 && !HAVE_NEON)) && !(HAVE_GETAUXVAL || HAVE_ELF_AUX_INFO)
 #include <signal.h>
 #include <setjmp.h>
 static sigjmp_buf jmpbuf;
@@ -326,7 +322,23 @@ uint32_t x264_cpu_detect( void )
 
 #elif HAVE_ALTIVEC
 
-#if SYS_MACOSX || SYS_OPENBSD || SYS_FREEBSD || SYS_NETBSD
+#if HAVE_GETAUXVAL || HAVE_ELF_AUX_INFO
+
+#define HWCAP_PPC_ALTIVEC   (1U << 28)
+
+uint32_t x264_cpu_detect( void )
+{
+    uint32_t flags = 0;
+
+    unsigned long hwcap = x264_getauxval( AT_HWCAP );
+
+    if ( hwcap & HWCAP_PPC_ALTIVEC )
+        flags |= X264_CPU_ALTIVEC;
+
+    return flags;
+}
+
+#elif SYS_MACOSX || SYS_FREEBSD || SYS_NETBSD || SYS_OPENBSD
 
 uint32_t x264_cpu_detect( void )
 {
@@ -396,11 +408,19 @@ uint32_t x264_cpu_detect( void )
 void x264_cpu_neon_test( void );
 int x264_cpu_fast_neon_mrc_test( void );
 
+#define HWCAP_ARM_NEON   (1U << 12)
+
 uint32_t x264_cpu_detect( void )
 {
     uint32_t flags = 0;
     flags |= X264_CPU_ARMV6;
 
+#if HAVE_GETAUXVAL || HAVE_ELF_AUX_INFO
+    unsigned long hwcap = x264_getauxval( AT_HWCAP );
+
+    if ( hwcap & HWCAP_ARM_NEON )
+        flags |= X264_CPU_NEON;
+#else
     // don't do this hack if compiled with -mfpu=neon
 #if !HAVE_NEON
     static void (* oldsig)( int );
@@ -418,6 +438,7 @@ uint32_t x264_cpu_detect( void )
 #endif
 
     flags |= X264_CPU_NEON;
+#endif
 
     // fast neon -> arm (Cortex-A9) detection relies on user access to the
     // cycle counter; this assumes ARMv7 performance counters.
@@ -523,9 +544,6 @@ int x264_cpu_num_processors( void )
 #elif SYS_WINDOWS
     return x264_pthread_num_processors_np();
 
-#elif SYS_CYGWIN || SYS_SunOS || SYS_OPENBSD
-    return sysconf( _SC_NPROCESSORS_ONLN );
-
 #elif SYS_LINUX
 #ifdef __ANDROID__
     // Android NDK does not expose sched_getaffinity
@@ -550,7 +568,7 @@ int x264_cpu_num_processors( void )
     get_system_info( &info );
     return info.cpu_count;
 
-#elif SYS_MACOSX || SYS_FREEBSD
+#elif SYS_MACOSX
     int ncpu;
     size_t length = sizeof( ncpu );
     if( sysctlbyname("hw.ncpu", &ncpu, &length, NULL, 0) )
@@ -558,6 +576,12 @@ int x264_cpu_num_processors( void )
         ncpu = 1;
     }
     return ncpu;
+
+#elif defined(_SC_NPROCESSORS_ONLN)
+    return sysconf( _SC_NPROCESSORS_ONLN );
+
+#elif defined(_SC_NPROCESSORS_CONF)
+    return sysconf( _SC_NPROCESSORS_CONF );
 
 #else
     return 1;
