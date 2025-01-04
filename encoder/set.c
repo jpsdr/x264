@@ -1,7 +1,7 @@
 /*****************************************************************************
  * set: header writing
  *****************************************************************************
- * Copyright (C) 2003-2024 x264 project
+ * Copyright (C) 2003-2025 x264 project
  *
  * Authors: Laurent Aimar <fenrir@via.ecp.fr>
  *          Loren Merritt <lorenm@u.washington.edu>
@@ -642,7 +642,7 @@ int x264_sei_version_write( x264_t *h, bs_t *s )
                                h->param.psz_opts[0] );
         if( h->param.i_opts_write & X264_OPTS_INFO )
             offset += sprintf( payload + offset, "x264 - core %d%s - H.264/MPEG-4 AVC codec - "
-                               "Copy%s 2003-2024 - http://www.videolan.org/x264.html",
+                               "Copy%s 2003-2025 - http://www.videolan.org/x264.html",
                                X264_BUILD, X264_VERSION, HAVE_GPL?"left":"right" );
         if( h->param.i_opts_write & X264_OPTS_POSTINFO )
             offset += sprintf( payload + offset, " %s", h->param.psz_opts[1] );
